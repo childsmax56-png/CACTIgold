@@ -719,6 +719,10 @@ export async function resolveUrl(url: string): Promise<{ fetchUrl: string; isIma
     }
     return { fetchUrl: url, isImage: false };
   }
+  if (url.includes('krakenfiles.com/view/')) {
+    const hash = url.split('/view/')[1]?.replace('/file.html', '').replace(/\/$/, '');
+    return { fetchUrl: hash ? `/api/kraken-proxy?hash=${hash}` : url, isImage: false };
+  }
   if (url.includes('pillows.su/f/')) {
     const pathPart = url.split('/f/')[1];
     return { fetchUrl: pathPart ? `https://api.pillows.su/api/download/${pathPart}` : url, isImage: false };
@@ -782,6 +786,9 @@ export async function handleDownloadFile(url: string, suggestedName: string, tag
                 if (data?.cdnUrl) finalUrl = data.cdnUrl;
             }
         }
+    } else if (url.includes('krakenfiles.com/view/')) {
+        const hash = url.split('/view/')[1]?.replace('/file.html', '').replace(/\/$/, '');
+        if (hash) finalUrl = `/api/kraken-proxy?hash=${hash}`;
     } else if (url.includes('pillows.su/f/')) {
         const pathPart = url.split('/f/')[1];
         if (pathPart) {
