@@ -1,4 +1,4 @@
-// Resolves a KrakenFiles hash to a direct audio URL via their POST API, then proxies it.
+// Resolves a KrakenFiles hash to a direct audio URL, then proxies it.
 // Usage: GET /api/kraken-proxy?hash={hash}
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -9,8 +9,8 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-async function resolveKrakenUrl(hash: string): Promise<string | null> {
-  // Try POST API first (what KrakenFiles JS calls internally)
+async function resolveKrakenUrl(hash: string): Promise<{ url: string | null; debug: string }> {
+  // Try POST API first
   try {
     const res = await fetchWithTimeout(
       `https://krakenfiles.com/api/file/${hash}/request-download-url`,
@@ -19,53 +19,45 @@ async function resolveKrakenUrl(hash: string): Promise<string | null> {
         headers: {
           'User-Agent': UA,
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json, */*',
           'Referer': `https://krakenfiles.com/view/${hash}/file.html`,
           'Origin': 'https://krakenfiles.com',
         },
       },
-      10000
+      5000
     );
+    const body = await res.text().catch(() => '');
     if (res.ok) {
-      const data: any = await res.json().catch(() => null);
+      const data: any = JSON.parse(body || '{}');
       const url = data?.data?.url ?? data?.url ?? null;
-      if (url) return url;
+      if (url) return { url, debug: `post-api:${res.status}` };
     }
-  } catch {
-    // timeout or blocked — fall through to HTML scraping
+    return { url: null, debug: `post-api:${res.status}:${body.slice(0, 200)}` };
+  } catch (e: any) {
+    // POST API timed out or failed — try scraping
   }
 
-  // Scrape embed/view page as fallback
-  const pagesToTry = [
-    `https://krakenfiles.com/embed-player/${hash}`,
-    `https://krakenfiles.com/view/${hash}/file.html`,
-  ];
-  const audioPatterns = [
-    /<(?:audio|source)[^>]+src=["']([^"']+)["']/i,
-    /(?:fileUrl|file_url|audioUrl|audio_url|src)\s*[=:]\s*["'](https:\/\/[^"']+)["']/i,
-    /"url"\s*:\s*"(https:\/\/[^"]+\.(?:mp3|wav|flac|m4a|ogg)[^"]*)"/i,
-    /(https:\/\/(?:cdn\.|storage\.|s3)[^\s"'<>]+\.(?:mp3|wav|flac|m4a|ogg)(?:\?[^\s"'<>]*)?)/i,
-  ];
-
-  for (const pageUrl of pagesToTry) {
-    try {
-      const res = await fetchWithTimeout(
-        pageUrl,
-        { headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*;q=0.9' } },
-        8000
-      );
-      if (!res.ok) continue;
-      const html = await res.text();
-      for (const pattern of audioPatterns) {
-        const m = html.match(pattern);
-        if (m?.[1]) return m[1];
-      }
-    } catch {
-      continue;
+  // Scrape embed page
+  try {
+    const res = await fetchWithTimeout(
+      `https://krakenfiles.com/embed-player/${hash}`,
+      { headers: { 'User-Agent': UA } },
+      5000
+    );
+    const html = await res.text().catch(() => '');
+    const patterns = [
+      /<(?:audio|source)[^>]+src=["']([^"']+)["']/i,
+      /(?:fileUrl|file_url|audioUrl|src)\s*[=:]\s*["'](https:\/\/[^"']+)["']/i,
+      /(https:\/\/[^\s"'<>]+\.(?:mp3|wav|flac|m4a|ogg)(?:\?[^\s"'<>]*)?)/i,
+    ];
+    for (const p of patterns) {
+      const m = html.match(p);
+      if (m?.[1]) return { url: m[1], debug: `embed:${res.status}` };
     }
+    return { url: null, debug: `embed:${res.status}:no-match:${html.slice(0, 200)}` };
+  } catch (e: any) {
+    return { url: null, debug: `embed:timeout` };
   }
-
-  return null;
 }
 
 export const onRequestGet: PagesFunction = async (context) => {
@@ -77,32 +69,26 @@ export const onRequestGet: PagesFunction = async (context) => {
       return new Response('Missing hash parameter', { status: 400 });
     }
 
-    const audioUrl = await resolveKrakenUrl(hash);
+    const { url: audioUrl, debug } = await resolveKrakenUrl(hash);
 
     if (!audioUrl) {
       return new Response(
-        JSON.stringify({ error: 'Could not resolve KrakenFiles URL', hash }),
+        JSON.stringify({ error: 'Could not resolve KrakenFiles URL', hash, debug }),
         { status: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
       );
     }
 
-    // Proxy the audio with Range support for seeking
+    // Proxy with Range support
     const rangeHeader = context.request.headers.get('Range');
     const upstream = await fetchWithTimeout(
       audioUrl,
-      {
-        headers: {
-          'User-Agent': UA,
-          ...(rangeHeader ? { Range: rangeHeader } : {}),
-        },
-      },
-      30000
+      { headers: { 'User-Agent': UA, ...(rangeHeader ? { Range: rangeHeader } : {}) } },
+      25000
     );
 
     const headers = new Headers();
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Content-Type, Accept-Ranges');
-
     for (const key of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'content-disposition']) {
       const val = upstream.headers.get(key);
       if (val) headers.set(key, val);
