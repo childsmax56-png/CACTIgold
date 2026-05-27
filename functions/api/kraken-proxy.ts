@@ -3,18 +3,19 @@
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-function withTimeout(ms: number): AbortSignal {
-  return AbortSignal.timeout(ms);
+function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 async function resolveKrakenUrl(hash: string): Promise<string | null> {
-  // Try POST API (what KrakenFiles JS calls)
+  // Try POST API first (what KrakenFiles JS calls internally)
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://krakenfiles.com/api/file/${hash}/request-download-url`,
       {
         method: 'POST',
-        signal: withTimeout(10000),
         headers: {
           'User-Agent': UA,
           'Content-Type': 'application/json',
@@ -22,7 +23,8 @@ async function resolveKrakenUrl(hash: string): Promise<string | null> {
           'Referer': `https://krakenfiles.com/view/${hash}/file.html`,
           'Origin': 'https://krakenfiles.com',
         },
-      }
+      },
+      10000
     );
     if (res.ok) {
       const data: any = await res.json().catch(() => null);
@@ -30,15 +32,15 @@ async function resolveKrakenUrl(hash: string): Promise<string | null> {
       if (url) return url;
     }
   } catch {
-    // timeout or network error — fall through
+    // timeout or blocked — fall through to HTML scraping
   }
 
-  // Scrape embed page as fallback
+  // Scrape embed/view page as fallback
   const pagesToTry = [
     `https://krakenfiles.com/embed-player/${hash}`,
     `https://krakenfiles.com/view/${hash}/file.html`,
   ];
-  const audioPattern = [
+  const audioPatterns = [
     /<(?:audio|source)[^>]+src=["']([^"']+)["']/i,
     /(?:fileUrl|file_url|audioUrl|audio_url|src)\s*[=:]\s*["'](https:\/\/[^"']+)["']/i,
     /"url"\s*:\s*"(https:\/\/[^"]+\.(?:mp3|wav|flac|m4a|ogg)[^"]*)"/i,
@@ -47,17 +49,15 @@ async function resolveKrakenUrl(hash: string): Promise<string | null> {
 
   for (const pageUrl of pagesToTry) {
     try {
-      const res = await fetch(pageUrl, {
-        signal: withTimeout(8000),
-        headers: {
-          'User-Agent': UA,
-          'Accept': 'text/html,application/xhtml+xml,*/*;q=0.9',
-        },
-      });
+      const res = await fetchWithTimeout(
+        pageUrl,
+        { headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*;q=0.9' } },
+        8000
+      );
       if (!res.ok) continue;
       const html = await res.text();
-      for (const p of audioPattern) {
-        const m = html.match(p);
+      for (const pattern of audioPatterns) {
+        const m = html.match(pattern);
         if (m?.[1]) return m[1];
       }
     } catch {
@@ -69,32 +69,35 @@ async function resolveKrakenUrl(hash: string): Promise<string | null> {
 }
 
 export const onRequestGet: PagesFunction = async (context) => {
-  const url = new URL(context.request.url);
-  const hash = url.searchParams.get('hash');
-
-  if (!hash) {
-    return new Response('Missing hash parameter', { status: 400 });
-  }
-
-  const audioUrl = await resolveKrakenUrl(hash);
-
-  if (!audioUrl) {
-    return new Response(
-      JSON.stringify({ error: 'Could not resolve KrakenFiles URL', hash }),
-      { status: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
-
-  // Proxy the audio with Range support for seeking
   try {
+    const url = new URL(context.request.url);
+    const hash = url.searchParams.get('hash');
+
+    if (!hash) {
+      return new Response('Missing hash parameter', { status: 400 });
+    }
+
+    const audioUrl = await resolveKrakenUrl(hash);
+
+    if (!audioUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Could not resolve KrakenFiles URL', hash }),
+        { status: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      );
+    }
+
+    // Proxy the audio with Range support for seeking
     const rangeHeader = context.request.headers.get('Range');
-    const upstream = await fetch(audioUrl, {
-      signal: withTimeout(30000),
-      headers: {
-        'User-Agent': UA,
-        ...(rangeHeader ? { Range: rangeHeader } : {}),
+    const upstream = await fetchWithTimeout(
+      audioUrl,
+      {
+        headers: {
+          'User-Agent': UA,
+          ...(rangeHeader ? { Range: rangeHeader } : {}),
+        },
       },
-    });
+      30000
+    );
 
     const headers = new Headers();
     headers.set('Access-Control-Allow-Origin', '*');
@@ -106,10 +109,11 @@ export const onRequestGet: PagesFunction = async (context) => {
     }
 
     return new Response(upstream.body, { status: upstream.status, headers });
+
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'Failed to stream audio', detail: err?.message, audioUrl }),
-      { status: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      JSON.stringify({ error: 'Unhandled exception', detail: err?.message ?? String(err) }),
+      { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
     );
   }
 };
