@@ -75,6 +75,7 @@ import { ReleasedView, ReleasedEntry } from './components/ReleasedView';
 import { VideosView, VideoRawEntry } from './components/VideosView';
 import { ChatBubble } from './components/ChatBubble';
 import { useSettings, LOADING_SCREENS } from './SettingsContext';
+import { PlaylistProvider } from './PlaylistContext';
 import { recordListeningHistory } from './history';
 
 // ERA_MAPPINGS is imported from artist.config.ts
@@ -2114,6 +2115,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
   const showPlayer = !!effectiveSong && !isFullScreen && !isPlayerClosed;
 
   return (
+    <PlaylistProvider>
     <div className="h-dvh w-full flex overflow-hidden relative bg-yzy-black">
       <audio
         ref={audioRef}
@@ -2704,5 +2706,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
         onClose={() => setChatOpen(false)}
       />
     </div>
+    </PlaylistProvider>
   );
 }
