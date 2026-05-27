@@ -1212,7 +1212,7 @@ export default function App() {
        return;
     }
 
-    if (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) {
+    if (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) {
       let streamUrl = '';
       let isPlayable = true;
 
@@ -1233,6 +1233,9 @@ export default function App() {
         } else if (rawUrl.includes('pillows.su/f/')) {
           const id = rawUrl.split('/f/')[1];
           streamUrl = `https://api.pillows.su/api/get/${id}`;
+        } else if (rawUrl.includes('krakenfiles.com/view/')) {
+          const hash = rawUrl.split('/view/')[1]?.replace('/file.html', '').replace(/\/$/, '');
+          if (hash) streamUrl = `/api/kraken-proxy?hash=${hash}`;
         }
 
       } catch (err) {
