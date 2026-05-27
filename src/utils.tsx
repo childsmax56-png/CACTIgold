@@ -1083,7 +1083,7 @@ export function matchesFilters(song: any, searchQuery: string, filters: any): bo
   if (filters.playableOnly) {
     const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
     const isNotAvailable = song.quality?.toLowerCase() === 'not available';
-    if (!rawUrl || !rawUrl.includes('pillows.su/f/') || isNotAvailable) {
+    if (!rawUrl || !(rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) || isNotAvailable) {
       return false;
     }
   }
