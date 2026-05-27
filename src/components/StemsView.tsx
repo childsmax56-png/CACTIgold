@@ -65,7 +65,7 @@ function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: st
     } catch { return d; }
   };
 
-  const CATEGORY_NAMES = ['Instrumentals', 'Acapellas', 'Studio Stems', 'Sessions', 'Live Acapellas', 'Live Stems', 'TV Tracks'];
+  const CATEGORY_NAMES = ['Instrumentals', 'Acapellas', 'Studio Stems', 'Sessions', 'Live Acapellas', 'Live Stems', 'TV Tracks', 'For / Pre-Travis', 'Unconfirmed', 'Features', 'Production'];
 
   for (const item of stemsData) {
     const isBrokenEra = typeof item.Era === 'string' && (item.Era.includes('OG File') || item.Era.includes('Unavailable'));
