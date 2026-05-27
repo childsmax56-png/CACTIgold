@@ -10,34 +10,27 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
 }
 
 async function resolveKrakenUrl(hash: string): Promise<{ url: string | null; debug: string }> {
-  // Try POST API first (what KrakenFiles JS calls internally)
+  // Scrape embed-audio page — jPlayer sets up like: m4a: 'https://...'
   try {
     const res = await fetchWithTimeout(
-      `https://krakenfiles.com/api/file/${hash}/request-download-url`,
-      {
-        method: 'POST',
-        headers: {
-          'User-Agent': UA,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, */*',
-          'Referer': `https://krakenfiles.com/view/${hash}/file.html`,
-          'Origin': 'https://krakenfiles.com',
-        },
-      },
+      `https://krakenfiles.com/embed-audio/${hash}`,
+      { headers: { 'User-Agent': UA, 'Accept': 'text/html,*/*' } },
       8000
     );
-    const body = await res.text().catch(() => '');
     if (res.ok) {
-      try {
-        const data: any = JSON.parse(body);
-        const url = data?.data?.url ?? data?.url ?? null;
-        if (url) return { url, debug: `post-api:${res.status}:ok` };
-      } catch { /* not JSON */ }
+      const html = await res.text();
+      // Match jPlayer format: mp3: 'URL' or m4a: 'URL' etc.
+      const jplayerMatch = html.match(/(?:mp3|m4a|wav|ogg|flac|aac)\s*:\s*['"]([^'"]+)['"]/i);
+      if (jplayerMatch?.[1]) return { url: jplayerMatch[1], debug: `embed-audio:jplayer:${res.status}` };
+      // Fallback: any CDN audio URL
+      const cdnMatch = html.match(/(https:\/\/[^\s"'<>]+\.(?:mp3|m4a|wav|flac|ogg)(?:\?[^\s"'<>]*)?)/i);
+      if (cdnMatch?.[1]) return { url: cdnMatch[1], debug: `embed-audio:cdn:${res.status}` };
+      return { url: null, debug: `embed-audio:no-match:${res.status}:${html.slice(0, 200)}` };
     }
-    return { url: null, debug: `post-api:${res.status}:${body.slice(0, 300)}` };
+    return { url: null, debug: `embed-audio:http-${res.status}` };
   } catch (e: any) {
     const reason = e?.name === 'AbortError' ? 'timeout' : (e?.message ?? String(e));
-    return { url: null, debug: `post-api:error:${reason}` };
+    return { url: null, debug: `embed-audio:error:${reason}` };
   }
 }
 
