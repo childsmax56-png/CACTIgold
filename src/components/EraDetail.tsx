@@ -244,7 +244,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
 
     await Promise.all(allFilteredPlayableSongs.map(async (song) => {
       const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
-      if (!rawUrl || !(rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/') || rawUrl.includes('ibb.co') || rawUrl.match(/\.(png|jpg|jpeg)$/i) || rawUrl.startsWith('https://i.scdn.co/'))) return;
+      if (!rawUrl || !(rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('ibb.co') || rawUrl.match(/\.(png|jpg|jpeg)$/i) || rawUrl.startsWith('https://i.scdn.co/'))) return;
       try {
         const { fetchUrl, isImage, imageExt, headers } = await resolveUrl(rawUrl);
         const res = await fetch(fetchUrl, headers ? { headers } : undefined);
@@ -388,7 +388,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
     return processedCategories.flatMap(c => c.songs).filter(song => {
       const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
       const isNotAvailable = isSongNotAvailable(song, rawUrl);
-      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
+      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
     });
   }, [processedCategories]);
 
@@ -637,7 +637,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
                     const lowerUrl = (rawUrl || '').toLowerCase();
                     const isTrulyEmptyLink = !rawUrl || lowerUrl === 'n/a' || lowerUrl.includes('link needed') || lowerUrl.includes('source needed');
                     const isYoutubeLink = (rawUrl.includes('youtube.com/watch') || rawUrl.includes('youtu.be/')) && !isNotAvailable;
-                    const isPlayable = (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
+                    const isPlayable = (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
                     const isEmpty = isTrulyEmptyLink || isNotAvailable || lowerUrl.includes('n/a');
                     const isCurrentlyPlaying = (currentSong?.name === song.name && currentSong?.description === song.description) ||
                       (currentSong?.url && song.url && currentSong.url === song.url) ||
@@ -788,7 +788,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
                                       </div>
                                       {remixes.map((remix, ri) => {
                                         const link = remix['Link(s)'].split('\n')[0].trim();
-                                        const isPillows = link.includes('pillows.su/f/') || link.includes('temp.imgur.gg/f/') || link.includes('krakenfiles.com/view/');
+                                        const isPillows = link.includes('pillows.su/f/') || link.includes('pillowcase.su/f/') || link.includes('temp.imgur.gg/f/');
                                         return (
                                           <button
                                             key={ri}
@@ -852,7 +852,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
                                       {samples.map((sample, ri) => {
                                         const link = (sample['Link(s)'] || '').split('\n')[0].trim();
                                         if (!link) return null;
-                                        const isPillows = link.includes('pillows.su/f/') || link.includes('temp.imgur.gg/f/') || link.includes('krakenfiles.com/view/');
+                                        const isPillows = link.includes('pillows.su/f/') || link.includes('pillowcase.su/f/') || link.includes('temp.imgur.gg/f/');
                                         const sampleName = sample["Sample\n(Artist - Track)"] || 'Unknown Sample';
                                         return (
                                           <button
