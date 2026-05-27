@@ -17,14 +17,44 @@ import { handleShareSilent } from './components/EraDetail';
 
 import { TrackerData, Era, Song, SearchFilters } from './types';
 import { matchesFilters, createSlug, getSongSlug, getCleanSongNameWithTags, isSongNotAvailable, formatTextForNotification, CUSTOM_IMAGES, HIDDEN_ALBUMS, ALBUM_RELEASE_DATES, getArtistName, buildArtistTag, handleDownloadFile } from './utils';
-import { CUSTOM_ALBUM_INFO, ERA_MAPPINGS } from './artist.config';
 import { isLastfmLoggedIn, saveLastfmSession, clearLastfmSession, scrobbleTrack, updateNowPlaying, cleanTrackName, parseArtistFromSong, cleanAlbumName } from './lastfm';
 import { isSpotifyLoggedIn, clearSpotifySession, startSpotifyAuth, handleSpotifyCallback } from './spotify';
 import { useSpotify, SpotifyTrack } from './useSpotify';
 import { useYoutube } from './useYoutube';
 import { useSoundCloud } from './useSoundCloud';
 
-// CUSTOM_ALBUM_INFO is imported from artist.config.ts
+const CUSTOM_ALBUM_INFO: Record<string, string[]> = {};
+
+function parseCSVText(text: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let current: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { current.push(field); field = ''; }
+      else if (ch === '\n') { current.push(field); field = ''; rows.push(current); current = []; }
+      else if (ch !== '\r') { field += ch; }
+    }
+  }
+  if (field || current.length > 0) { current.push(field); rows.push(current); }
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  return rows.slice(1)
+    .filter(row => row.some(cell => cell.trim() !== ''))
+    .map(row => {
+      const obj: Record<string, string> = {};
+      headers.forEach((header, i) => { obj[header] = row[i] ?? ''; });
+      return obj;
+    });
+}
 
 export interface MvEntry {
   Era: string;
@@ -71,14 +101,20 @@ import { SettingsView } from './components/SettingsView';
 import { HistoryView } from './components/HistoryView';
 import { FakesView } from './components/FakesView';
 import { CompsView } from './components/CompsView';
+import { YEditsView } from './components/YEditsView';
 import { ReleasedView, ReleasedEntry } from './components/ReleasedView';
 import { VideosView, VideoRawEntry } from './components/VideosView';
+import { SubAlbumsView, SubAlbumEntry } from './components/SubAlbumsView';
 import { ChatBubble } from './components/ChatBubble';
-import { useSettings, LOADING_SCREENS } from './SettingsContext';
+import { PlaylistsView } from './components/PlaylistsView';
+import { ImportPlaylistModal } from './components/ImportPlaylistModal';
+import { useSettings, LOADING_SCREENS, LoadingScreenId } from './SettingsContext';
 import { PlaylistProvider } from './PlaylistContext';
 import { recordListeningHistory } from './history';
 
-// ERA_MAPPINGS is imported from artist.config.ts
+const ERA_MAPPINGS: Record<string, string> = {
+  "Turbo Grafix 16": "Turbo Grafx 16",
+};
 
 export default function App() {
   const { settings } = useSettings();
@@ -86,6 +122,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadingFading, setLoadingFading] = useState(false);
   const [gifReady, setGifReady] = useState(false);
+  const [resolvedShuffleScreenId] = useState<LoadingScreenId | null>(() => {
+    if (settings.loadingScreen === 'shuffle') {
+      const eligible = LOADING_SCREENS.filter(s => s.type !== 'none');
+      if (eligible.length > 0) return eligible[Math.floor(Math.random() * eligible.length)].id;
+    }
+    return null;
+  });
   const [showChangelog, setShowChangelog] = useState(false);
   const [showSafariWarning, setShowSafariWarning] = useState(false);
   const [mvData, setMvData] = useState<MvEntry[]>([]);
@@ -99,6 +142,7 @@ export default function App() {
   const [tracklistsData, setTracklistsData] = useState<TracklistAlbum[]>([]);
   const [releasedData, setReleasedData] = useState<ReleasedEntry[]>([]);
   const [videosData, setVideosData] = useState<VideoRawEntry[]>([]);
+  const [subAlbumsData, setSubAlbumsData] = useState<SubAlbumEntry[]>([]);
   const [isRandomMode, setIsRandomMode] = useState(false);
   const [popupUrl, setPopupUrl] = useState<string | null>(null);
 
@@ -107,6 +151,17 @@ export default function App() {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  const [pendingImport, setPendingImport] = useState<{ name: string; cover?: string; songs: { songName: string; eraName: string; url: string }[] } | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get('playlist');
+      if (!raw) return null;
+      return JSON.parse(decodeURIComponent(atob(raw)));
+    } catch {
+      return null;
+    }
+  });
 
   const [activeCategory, setActiveCategory] = useState<Category>(() => {
     const path = window.location.pathname;
@@ -120,12 +175,13 @@ export default function App() {
     if (path.startsWith('/settings')) return 'settings';
     if (path.startsWith('/history')) return 'history';
     if (path.startsWith('/tracklists')) return 'tracklists';
-    if (path.startsWith('/comps')) return 'comps';
     if (path.startsWith('/videos')) return 'videos';
+    if (path.startsWith('/comps')) return 'comps';
+    if (path.startsWith('/yedits')) return 'yedits';
+    if (path.startsWith('/subalbums')) return 'subalbums';
     return 'music';
   });
 
-  const [chatOpen, setChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<SearchFilters>({
     tags: [],
@@ -144,7 +200,8 @@ export default function App() {
 
   useEffect(() => {
     if (!loading) {
-      const screen = LOADING_SCREENS.find(s => s.id === settings.loadingScreen);
+      const effectiveId = settings.loadingScreen === 'shuffle' ? (resolvedShuffleScreenId ?? 'none') : settings.loadingScreen;
+      const screen = LOADING_SCREENS.find(s => s.id === effectiveId);
       if (screen?.type === 'gif' && !gifReady) {
         const t = setTimeout(() => {
           setLoadingFading(true);
@@ -190,11 +247,6 @@ export default function App() {
   const [isShuffle, setIsShuffle] = useState(settings.startupShuffle);
   const [shuffledQueue, setShuffledQueue] = useState<number[]>([]);
   const [loopMode, setLoopMode] = useState(settings.startupLoop || 0);
-
-  const isShuffleRef = useRef(settings.startupShuffle);
-  const currentSongIndexRef = useRef(-1);
-  const playlistRef = useRef<Song[]>([]);
-  const randomSongRef = useRef<() => void>(() => {});
   const [hasLoopedOnce, setHasLoopedOnce] = useState(false);
 
   const [favoriteKeys, setFavoriteKeys] = useState<{ songName: string, eraName: string, url: string, song?: Song }[]>(() => {
@@ -376,6 +428,7 @@ export default function App() {
   }, [data, recentData]);
 
   const [lastfmLoggedIn, setLastfmLoggedIn] = useState(isLastfmLoggedIn());
+  const [yeiOpen, setYeiOpen] = useState(false);
   const [spotifyLoggedIn, setSpotifyLoggedIn] = useState(isSpotifyLoggedIn());
   const [activePlayer, setActivePlayer] = useState<'audio' | 'spotify' | 'youtube' | 'soundcloud'>('audio');
   const { state: spotifyState, controls: spotifyControls } = useSpotify(spotifyLoggedIn);
@@ -387,10 +440,6 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-
-  isShuffleRef.current = isShuffle;
-  currentSongIndexRef.current = currentSongIndex;
-  playlistRef.current = playlist;
 
   useEffect(() => {
     if (audioRef.current) {
@@ -404,6 +453,55 @@ export default function App() {
         if (ok) setSpotifyLoggedIn(true);
       });
     }
+  }, []);
+
+  // Re-read auth state when VaultGold syncs credentials into localStorage
+  // Force useSpotify to fully reinitialize by toggling enabled false→true
+  useEffect(() => {
+    const handleVgSync = () => {
+      setLastfmLoggedIn(isLastfmLoggedIn());
+      // Toggle Spotify off then on so useSpotify disconnects old player and reinits with new token
+      setSpotifyLoggedIn(false);
+      setTimeout(() => setSpotifyLoggedIn(isSpotifyLoggedIn()), 100);
+    };
+    window.addEventListener('vg-synced', handleVgSync);
+    return () => window.removeEventListener('vg-synced', handleVgSync);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vgToken = params.get('vg_token');
+    const vgUserRaw = params.get('vg_user');
+    if (!vgToken || !vgUserRaw) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    try {
+      const vgUser = JSON.parse(decodeURIComponent(vgUserRaw));
+      if (window.opener) {
+        window.opener.postMessage({ vaultgold: 'signed_in', token: vgToken, user: vgUser }, '*');
+        window.close();
+      } else {
+        localStorage.setItem('vg_token', vgToken);
+        localStorage.setItem('vg_user', JSON.stringify(vgUser));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vgToken = params.get('vg_token');
+    const vgUserRaw = params.get('vg_user');
+    if (!vgToken || !vgUserRaw) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    try {
+      const vgUser = JSON.parse(decodeURIComponent(vgUserRaw));
+      if (window.opener) {
+        window.opener.postMessage({ vaultgold: 'signed_in', token: vgToken, user: vgUser }, '*');
+        window.close();
+      } else {
+        localStorage.setItem('vg_token', vgToken);
+        localStorage.setItem('vg_user', JSON.stringify(vgUser));
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -448,8 +546,8 @@ export default function App() {
     if (!idMatch) return null;
     const sheetId = idMatch[1];
     const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
-    const gid = gidMatch ? gidMatch[1] : '0';
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    const gid = gidMatch ? gidMatch[1] : null;
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
   }
 
   function applyLocalSongs(targetJson: any, localData: any) {
@@ -459,7 +557,11 @@ export default function App() {
       if (!originalEraName) return;
       const matchedMapKey = Object.keys(ERA_MAPPINGS).find(k => k.toLowerCase() === originalEraName.toLowerCase());
       const eraName = matchedMapKey ? ERA_MAPPINGS[matchedMapKey] : originalEraName;
-      if (!targetJson.eras?.[eraName]) return;
+      if (!targetJson.eras?.[eraName]) {
+        if (!HIDDEN_ALBUMS.includes(eraName)) return;
+        if (!targetJson.eras) targetJson.eras = {};
+        targetJson.eras[eraName] = { name: eraName, data: {} };
+      }
 
       let rawUrl = item['Link(s)'] || '';
       const linkMatch = rawUrl.match(/\]\((.*?)\)/);
@@ -495,9 +597,7 @@ export default function App() {
       }
 
       // No Below match — append to target category or first available category
-      const catKey = targetCategory && categories[targetCategory]
-        ? targetCategory
-        : Object.keys(categories)[0];
+      const catKey = targetCategory || Object.keys(categories)[0];
       if (catKey) {
         if (!categories[catKey]) categories[catKey] = [];
         (categories[catKey] as Song[]).push(newSong);
@@ -593,10 +693,7 @@ export default function App() {
     const FETCH_TIMEOUT = 20000;
     Promise.all([
       axios.get('/api/a', { timeout: FETCH_TIMEOUT }),
-      axios.get('https://yzygold-test.vercel.app/MyK.json', { timeout: FETCH_TIMEOUT }).catch(err => {
-        console.error("Failed to fetch MyK data", err);
-        return { data: [] };
-      }),
+      Promise.resolve({ data: [] }),
       axios.get('/local-songs.json', { timeout: FETCH_TIMEOUT }).catch(err => {
         console.error("Failed to fetch local songs", err);
         return { data: [] };
@@ -720,11 +817,15 @@ export default function App() {
           });
           applyLocalSongs(nextJson, localRes.data);
           applyTrackerSheetSongs(nextJson, sheetsRes.data);
+          applyTrackerSheetSongs(nextJson, recentTabRes.data);
+          applyTrackerSheetSongs(nextJson, recentRes.data);
           setData(nextJson);
         } else {
           const baseJson = JSON.parse(JSON.stringify(json));
           applyLocalSongs(baseJson, localRes.data);
           applyTrackerSheetSongs(baseJson, sheetsRes.data);
+          applyTrackerSheetSongs(baseJson, recentTabRes.data);
+          applyTrackerSheetSongs(baseJson, recentRes.data);
           setData(baseJson);
         }
         // Map recent.csv rows
@@ -841,6 +942,10 @@ export default function App() {
           }
         } else if (path.startsWith('/tracklists')) {
           setActiveCategory('tracklists');
+        } else if (path.startsWith('/yedits')) {
+          setActiveCategory('yedits');
+        } else if (path.startsWith('/subalbums')) {
+          setActiveCategory('subalbums');
         } else if (path.startsWith('/related/')) {
           setActiveCategory('related');
           const slug = path.split('/related/')[1];
@@ -881,7 +986,7 @@ export default function App() {
       });
     };
 
-    axios.get('https://yzygold-test.vercel.app/MV.json')
+    axios.get('/api/music-videos')
       .then(res => {
         setMvData(normalizeEraField(res.data) as MvEntry[]);
       })
@@ -897,7 +1002,7 @@ export default function App() {
         console.error("Failed to fetch music videos data:", err);
       });
 
-    axios.get('https://yzygold-test.vercel.app/Remixes.json')
+    Promise.resolve({ data: [] })
       .then(res => {
         setRemixData(normalizeEraField(res.data) as RemixEntry[]);
       })
@@ -918,9 +1023,15 @@ export default function App() {
         console.error("Failed to fetch Art data:", err);
       });
 
-    axios.get('https://yzygold-test.vercel.app/Stems.json')
-      .then(res => {
-        setStemsData(normalizeEraField(res.data) as StemEntry[]);
+    fetch('/data/stems.csv')
+      .then(res => res.text())
+      .then(text => {
+        try {
+          const rows = parseCSVText(text);
+          setStemsData(normalizeEraField(rows) as StemEntry[]);
+        } catch (err) {
+          console.error("Failed to process Stems data:", err);
+        }
       })
       .catch(err => {
         console.error("Failed to fetch Stems data:", err);
@@ -942,9 +1053,11 @@ export default function App() {
         console.error("Failed to fetch Released data:", err);
       });
 
-    axios.get('https://yzygold-test.vercel.app/Fakes.json')
-      .then(res => {
-        const rawFakes = normalizeEraField(res.data) as any[];
+    fetch('/data/fakes.csv')
+      .then(res => res.text())
+      .then(text => {
+        try {
+        const rawFakes = normalizeEraField(parseCSVText(text)) as any[];
         const mappedFakes = rawFakes.map(item => {
           let name = item.Name || '';
           let featureExtra = undefined;
@@ -973,12 +1086,15 @@ export default function App() {
           return newItem;
         });
         setFakesData(mappedFakes as FakesEntry[]);
+        } catch (err) {
+          console.error("Failed to process Fakes data:", err);
+        }
       })
       .catch(err => {
         console.error("Failed to fetch Fakes data:", err);
       });
 
-    axios.get('https://yzygold-test.vercel.app/Samples.json')
+    Promise.resolve({ data: [] })
       .then(res => {
         setSamplesData(res.data as SampleEntry[]);
       })
@@ -994,10 +1110,18 @@ export default function App() {
         console.error("Failed to fetch Tracklists data:", err);
       });
 
+    axios.get('/data/subalbums.json')
+      .then(res => {
+        setSubAlbumsData(res.data as SubAlbumEntry[]);
+      })
+      .catch(err => {
+        console.error("Failed to fetch Sub Albums data:", err);
+      });
+
     const userAgent = navigator.userAgent.toLowerCase();
     const isBrowserSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('crios') && !userAgent.includes('android');
 
-    if (!localStorage.getItem('v1_9_seen')) {
+    if (!localStorage.getItem('v2_0_seen')) {
       setShowChangelog(true);
     } else if (isBrowserSafari) {
       setShowSafariWarning(true);
@@ -1012,6 +1136,14 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
+    const handleLastfmMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'lastfm-auth' && e.data.session && e.data.user) {
+        saveLastfmSession(e.data.session, e.data.user);
+        setLastfmLoggedIn(true);
+      }
+    };
+    window.addEventListener('message', handleLastfmMessage);
+
     const handleLastfmApiError = () => {
       setShowLastfmErrorModal(true);
       clearLastfmSession();
@@ -1020,6 +1152,7 @@ export default function App() {
 
     window.addEventListener('lastfm-api-error', handleLastfmApiError);
     return () => {
+      window.removeEventListener('message', handleLastfmMessage);
       window.removeEventListener('lastfm-api-error', handleLastfmApiError);
     };
   }, []);
@@ -1082,13 +1215,21 @@ export default function App() {
           window.history.pushState({ category: 'tracklists' }, '', '/tracklists');
         }
       }
-    } else if (activeCategory === 'comps') {
-      if (currentPath !== '/comps') {
-        window.history.pushState({ category: 'comps' }, '', '/comps');
-      }
     } else if (activeCategory === 'videos') {
       if (!currentPath.startsWith('/videos')) {
         window.history.pushState({ category: 'videos' }, '', '/videos');
+      }
+    } else if (activeCategory === 'comps') {
+      if (!currentPath.startsWith('/comps')) {
+        window.history.pushState({ category: 'comps' }, '', '/comps');
+      }
+    } else if (activeCategory === 'yedits') {
+      if (!currentPath.startsWith('/yedits')) {
+        window.history.pushState({ category: 'yedits' }, '', '/yedits');
+      }
+    } else if (activeCategory === 'subalbums') {
+      if (!currentPath.startsWith('/subalbums')) {
+        window.history.pushState({ category: 'subalbums' }, '', '/subalbums');
       }
     } else {
       if (selectedAlbum) {
@@ -1163,6 +1304,10 @@ export default function App() {
         setActiveCategory('settings');
       } else if (path.startsWith('/history')) {
         setActiveCategory('history');
+      } else if (path.startsWith('/yedits')) {
+        setActiveCategory('yedits');
+      } else if (path.startsWith('/subalbums')) {
+        setActiveCategory('subalbums');
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -1190,11 +1335,12 @@ export default function App() {
     return Object.values(era.data || {}).flat().filter(s => {
       const rawUrl = s.url || (s.urls && s.urls.length > 0 ? s.urls[0] : '');
       const isNotAvailable = isSongNotAvailable(s, rawUrl);
-      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
+      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
     });
   };
 
   const handlePlaySong = async (song: Song, era: Era, contextTracks?: Song[], resetShuffleHistory = true, autoPlay = true, isRandomSelection = false) => {
+    if (activePlayer === 'spotify') spotifyControls.pause();
     const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
     const isNotAvailable = isSongNotAvailable(song, rawUrl);
     
@@ -1384,25 +1530,23 @@ export default function App() {
   }, [selectedAlbum, currentSong]);
 
   const playNext = () => {
-    const pl = playlistRef.current;
-    const idx = currentSongIndexRef.current;
-    const shuffle = isShuffleRef.current;
-    if (pl.length === 0 || !currentEra) return;
-    let nextIndex = idx + 1;
-    if (shuffle && pl.length > 1) {
-      let randomIndex;
-      do {
-        randomIndex = Math.floor(Math.random() * pl.length);
-      } while (randomIndex === idx);
-      nextIndex = randomIndex;
-    } else if (nextIndex >= pl.length) {
+    if (playlist.length === 0 || !currentEra) return;
+    let nextIndex = currentSongIndex + 1;
+    if (isShuffle && shuffledQueue.length > 0) {
+      const idx = shuffledQueue.indexOf(currentSongIndex);
+      if (idx !== -1 && idx < shuffledQueue.length - 1) {
+        nextIndex = shuffledQueue[idx + 1];
+      } else {
+        nextIndex = shuffledQueue[0];
+      }
+    } else if (nextIndex >= playlist.length) {
       nextIndex = 0;
     }
 
-    const nextSong = pl[nextIndex];
+    const nextSong = playlist[nextIndex];
     if (nextSong) {
       const eraToPass = (nextSong as any).realEra || currentEra;
-      handlePlaySong(nextSong, eraToPass, pl, false, true, isRandomMode);
+      handlePlaySong(nextSong, eraToPass, playlist, false, true, isRandomMode);
     }
   };
 
@@ -1451,8 +1595,6 @@ export default function App() {
         setHasLoopedOnce(false);
         playNext();
       }
-    } else if (isShuffleRef.current) {
-      randomSongRef.current();
     } else {
       playNext();
     }
@@ -1703,8 +1845,9 @@ export default function App() {
   };
 
   const handlePlaySpotifyTrack = async (uri: string) => {
+    if (!spotifyState.isReady) { showToast('Spotify player is still connecting — try again in a moment'); return; }
     const ok = await spotifyControls.playUri(uri);
-    if (!ok) return;
+    if (!ok) { showToast('Spotify playback failed. Make sure you have Spotify Premium.'); return; }
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -1721,6 +1864,7 @@ export default function App() {
 
   const handlePlayYoutubeTrack = (videoId: string, title?: string) => {
     if (!youtubeState.isReady) return;
+    if (activePlayer === 'spotify') spotifyControls.pause();
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -1732,6 +1876,7 @@ export default function App() {
 
   const handlePlaySoundCloudTrack = (url: string) => {
     if (!soundcloudState.isReady) return;
+    if (activePlayer === 'spotify') spotifyControls.pause();
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -1792,6 +1937,8 @@ export default function App() {
       if (!finalErasArray.find(e => e.name === selectedAlbum.name)) {
         setSelectedAlbum(null);
       }
+    } else {
+      setSelectedAlbum(null);
     }
     setActiveCategory(cat);
   };
@@ -1805,7 +1952,8 @@ export default function App() {
   };
 
   if (loading || loadingFading) {
-    const screen = LOADING_SCREENS.find(s => s.id === settings.loadingScreen);
+    const effectiveId = settings.loadingScreen === 'shuffle' ? (resolvedShuffleScreenId ?? 'none') : settings.loadingScreen;
+    const screen = LOADING_SCREENS.find(s => s.id === effectiveId);
     return (
       <div
         className="h-screen w-full relative bg-black overflow-hidden transition-opacity duration-700"
@@ -1849,14 +1997,48 @@ let erasArray = (Object.values(data.eras || {}) as Era[])
     fileInfo: CUSTOM_ALBUM_INFO[era.name] || era.fileInfo
   })) as Era[];
 
+const RELATED_ERA_ORDER = [
+  'DAYTONA',
+  'NASIR',
+  'K.T.S.E.',
+  'Jesus Is Born',
+  'Sunday Service Choir',
+  'The Elementary School Dropout',
+  'NEVER STOP',
+  'YE-I',
+];
+
 let relatedErasArray = (Object.values(data.eras || {}) as Era[])
   .filter(era => HIDDEN_ALBUMS.includes(era.name))
   .map(era => ({
     ...era,
     fileInfo: CUSTOM_ALBUM_INFO[era.name] || era.fileInfo
-  })) as Era[];
+  }))
+  .sort((a, b) => {
+    const ai = RELATED_ERA_ORDER.indexOf(a.name);
+    const bi = RELATED_ERA_ORDER.indexOf(b.name);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  }) as Era[];
 
+// Turbo Grafx 16 and Wolves can end up out of position (Turbo gets renamed from
+// "TurboGrafx 16" via ERA_MAPPINGS, Wolves may be appended after myk merge).
+// Reinsert both right after Cruel Winter [V2]: CW[V2] → Turbo Grafx 16 → Wolves.
+{
+  const cwV2Idx = erasArray.findIndex(e => e.name === "Cruel Winter [V2]");
+  const turboIdx = erasArray.findIndex(e => e.name === "Turbo Grafx 16");
+  const wolvesIdx = erasArray.findIndex(e => e.name === "Wolves");
 
+  if (cwV2Idx !== -1 && turboIdx !== -1 && wolvesIdx !== -1) {
+    const turboEra = erasArray[turboIdx];
+    const wolvesEra = erasArray[wolvesIdx];
+    [turboIdx, wolvesIdx].sort((a, b) => b - a).forEach(i => erasArray.splice(i, 1));
+    const newCwV2Idx = erasArray.findIndex(e => e.name === "Cruel Winter [V2]");
+    erasArray.splice(newCwV2Idx + 1, 0, turboEra, wolvesEra);
+  }
+}
 
 // KIDS SEE GHOSTS can land at the end of the array when the API returns the old
 // "KIDSSEEGHOSTS" name and ERA_MAPPINGS renames it (new JS key goes to the end).
@@ -2031,8 +2213,8 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
         Object.values(era.data).flat().forEach(song => {
           const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
           const isNotAvailable = isSongNotAvailable(song, rawUrl);
-          const isPlayable = rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
-          
+          const isPlayable = rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
+
           if (isPlayable) {
              allMusicSongs.push({ ...song, realEra: era });
           }
@@ -2056,8 +2238,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
 
     handlePlaySong(randomSong, randomSong.realEra, contextPlaylist, true, true, true);
   };
-
-  randomSongRef.current = handleRandomSongClick;
 
   const isSpotifyActive = activePlayer === 'spotify';
   const isYoutubeActive = activePlayer === 'youtube';
@@ -2179,15 +2359,10 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
           onHomeClick={handleHomeClick}
           activeCategory={activeCategory}
           onCategoryChange={handleCategoryChange}
-          lastfmLoggedIn={lastfmLoggedIn}
-          onLastfmLogout={() => setLastfmLoggedIn(false)}
           onRandomSongClick={handleRandomSongClick}
           isRandomMode={isRandomMode}
-          spotifyLoggedIn={spotifyLoggedIn}
-          onSpotifyLogin={startSpotifyAuth}
-          onSpotifyLogout={() => { clearSpotifySession(); setSpotifyLoggedIn(false); setActivePlayer('audio'); }}
-          chatOpen={chatOpen}
-          onChatClick={() => setChatOpen(v => !v)}
+          yeiOpen={yeiOpen}
+          onYEIClick={() => setYeiOpen(o => !o)}
         />
 
         <main className={`flex-1 overflow-y-auto relative scroll-smooth bg-[#0a0a0a] flex flex-col ${showPlayer ? 'pb-44 md:pb-28' : ''}`}>
@@ -2259,14 +2434,23 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   toggleFavorite={toggleFavorite}
                   favoriteKeys={favoriteKeys}
                 />
-              ) : activeCategory === 'comps' ? (
-                <CompsView key="comps" eras={erasArray} searchQuery={searchQuery} />
               ) : activeCategory === 'videos' ? (
                 <VideosView
                   key="videos"
                   eras={erasArray}
                   videosData={videosData}
                   searchQuery={searchQuery}
+                />
+              ) : activeCategory === 'subalbums' ? (
+                <SubAlbumsView
+                  key="subalbums"
+                  data={subAlbumsData}
+                  searchQuery={searchQuery}
+                  eras={[...erasArray, ...relatedErasArray]}
+                  releasedData={releasedData}
+                  onPlaySong={handlePlaySong}
+                  currentSong={currentSong}
+                  isPlaying={isPlaying}
                 />
               ) : activeCategory === 'released' ? (
                 <ReleasedView
@@ -2299,6 +2483,12 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   samplesData={samplesData}
                   favoriteKeys={favoriteKeys}
                   toggleFavorite={toggleFavorite}
+                  onNavigateToEra={(targetEra) => {
+                    const isHidden = HIDDEN_ALBUMS.includes(targetEra.name);
+                    const fullEra = [...erasArray, ...relatedErasArray].find(e => e.name === targetEra.name) || targetEra;
+                    setSelectedAlbum(fullEra);
+                    setActiveCategory(isHidden ? 'related' : 'music');
+                  }}
                 />
               ) : selectedAlbum ? (
                 <EraDetail
@@ -2320,6 +2510,35 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   samplesData={samplesData}
                   favoriteKeys={favoriteKeys}
                   toggleFavorite={toggleFavorite}
+                  onNavigateToEra={(targetEra) => {
+                    const isHidden = HIDDEN_ALBUMS.includes(targetEra.name);
+                    const fullEra = [...erasArray, ...relatedErasArray].find(e => e.name === targetEra.name) || targetEra;
+                    setSelectedAlbum(fullEra);
+                    setActiveCategory(isHidden ? 'related' : 'music');
+                  }}
+                />
+              ) : activeCategory === 'playlists' ? (
+                <PlaylistsView
+                  key="playlists"
+                  eras={[...erasArray, ...relatedErasArray]}
+                  artData={artData}
+                  searchQuery={searchQuery}
+                  onPlaySong={handlePlaySong}
+                  onToast={showToast}
+                />
+              ) : activeCategory === 'comps' ? (
+                <CompsView
+                  key="comps"
+                  eras={erasArray}
+                  searchQuery={searchQuery}
+                />
+              ) : activeCategory === 'yedits' ? (
+                <YEditsView
+                  key="yedits"
+                  searchQuery={searchQuery}
+                  onPlaySong={handlePlaySong}
+                  currentSong={currentSong}
+                  isPlaying={isPlaying}
                 />
               ) : activeCategory === 'related' ? (
                 <EraGrid key="related-grid" eras={filteredRelatedEras} onSelectEra={setSelectedAlbum} />
@@ -2331,10 +2550,10 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
 
           <div className="mt-auto px-6 py-8 text-center border-t border-white/5">
             <p className="text-[10px] text-white/30 leading-relaxed">
-              YƵYGOLD does not host or hold any illegal files. All links are external and provided as-is for educational and archival purposes only.
+              YZYGOLD does not host or hold any illegal files. All links are external and provided as-is for educational and archival purposes only.
             </p>
             <p className="text-[10px] text-white/30 leading-relaxed">
-              YZYGOLD 2026 © [V1.9]
+              YZYGOLD 2026 © · v2.0
             </p>
             <p className="text-[10px] text-white/30 leading-relaxed mt-1">
               Logo created by Nr7th on discord
@@ -2545,41 +2764,33 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
               className="bg-[#111] border border-white/10 rounded-xl max-w-lg w-full p-6 md:p-8"
             >
               <h2 className="text-2xl font-bold text-white mb-1 tracking-tight font-display">
-                Version 1.9
+                Version 2.0
               </h2>
               <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-6">What's New</p>
 
               <div className="space-y-4 mb-8 text-sm text-white/70 leading-relaxed">
                 <ul className="space-y-4">
                   <li>
-                    <strong className="text-white">Music videos tab</strong>
-                    <br />View, watch, and download music videos in the new "videos tab"
+                    <strong className="text-white">Playlists</strong>
+                    <p className="mt-1">You can now create playlists of released and unreleased leaks and share and download them</p>
                   </li>
                   <li>
-                    <strong className="text-white">YE-I chatbot assistant</strong>
-                    <br />A new AI chat bot you can ask questions about the site
+                    <strong className="text-white">Sub Albums</strong>
+                    <p className="mt-1">This tab was created for albums that don't really have that many songs or are apart of different eras</p>
                   </li>
                   <li>
-                    <strong className="text-white">And a lot more smaller additions</strong>
-                    <br />All of which can be viewed in the{' '}
-                    <a href="https://docs.google.com/document/d/1b8aidNuSLLHfzgzrJ0uGdWHPuo-uNk6wI21Vscwzid4/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-[var(--theme-color)] hover:underline">
-                      change log
-                    </a>
+                    <strong className="text-white">VAULTgold Accounts</strong>
+                    <p className="mt-1">This was made so to link your Spotify and Last.fm accounts easier, just make an account in settings</p>
                   </li>
+                  <li className="text-white/50">And more general stability and bug fixes</li>
                 </ul>
 
-                <div className="border-t border-white/10 pt-4 space-y-2 text-white/50 text-xs">
-                  <p className="text-white/70 font-semibold uppercase tracking-wider text-xs">
-                    COME BACK TO THE SITE SUNDAY FOR A BIG ANNOUNCEMENT
-                  </p>
-                  <p>
-                    <a href="https://discord.gg/TYqdey3B" target="_blank" rel="noopener noreferrer" className="text-[var(--theme-color)] hover:underline">
-                      Join the Discord
-                    </a>
-                    {' · '}
-                    <a href="https://docs.google.com/document/d/1b8aidNuSLLHfzgzrJ0uGdWHPuo-uNk6wI21Vscwzid4/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-[var(--theme-color)] hover:underline">
-                      Changelog
-                    </a>
+                <div className="border-t border-white/10 pt-4 space-y-2">
+                  <p className="text-white font-semibold">TUNE IN TOMORROW FOR THE NEW VAULT GOLD TRACKERS</p>
+                  <p className="text-xs space-x-3">
+                    <a href="https://discord.gg/TYqdey3B" target="_blank" rel="noopener noreferrer" className="text-[var(--theme-color)]/70 hover:text-[var(--theme-color)] transition-colors underline">Discord</a>
+                    <span>·</span>
+                    <a href="https://www.reddit.com/r/2YZY2GOLD/" target="_blank" rel="noopener noreferrer" className="text-[var(--theme-color)]/70 hover:text-[var(--theme-color)] transition-colors underline">Reddit</a>
                   </p>
                 </div>
               </div>
@@ -2587,7 +2798,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
               <button
                 onClick={() => {
                   setShowChangelog(false);
-                  localStorage.setItem('v1_9_seen', 'true');
+                  localStorage.setItem('v2_0_seen', 'true');
 
                   const userAgent = navigator.userAgent.toLowerCase();
                   const isBrowserSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('crios') && !userAgent.includes('android');
@@ -2705,10 +2916,24 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
           currentSongName: currentSong?.name,
           currentEraName: currentEra?.name,
         }}
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
+        showPlayer={showPlayer}
+        open={yeiOpen}
+        onOpenChange={setYeiOpen}
       />
     </div>
+    {pendingImport && (
+      <ImportPlaylistModal
+        pending={pendingImport}
+        onDone={() => {
+          setPendingImport(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('playlist');
+          window.history.replaceState({}, '', url.toString());
+        }}
+        onNavigatePlaylists={() => setActiveCategory('playlists')}
+      />
+    )}
     </PlaylistProvider>
   );
 }
+
