@@ -228,9 +228,6 @@ export function FilterMenu({ filters, setFilters, activeCategory }: FilterMenuPr
     if (activeCategory === 'stems') {
       return tag.label === 'Lost Media' || tag.label === 'By YƵYGOLD';
     }
-    if (activeCategory === 'misc') {
-      return tag.label === 'Lost Media' || tag.label === 'Best Of' || tag.label === 'By YƵYGOLD';
-    }
     return true;
   });
 

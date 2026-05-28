@@ -6,7 +6,7 @@ import { FilterMenu } from './FilterMenu';
 import { SearchFilters } from '../types';
 import { useSettings } from '../SettingsContext';
 
-export type Category = 'music' | 'recent' | 'stems' | 'fakes' | 'settings' | 'history' | 'tracklists' | 'released' | 'yedits' | 'playlists' | 'timeline';
+export type Category = 'music' | 'recent' | 'stems' | 'fakes' | 'settings' | 'history' | 'tracklists' | 'released' | 'playlists' | 'timeline';
 
 interface NavbarProps {
   searchQuery: string;
@@ -30,7 +30,6 @@ const NAV_CATEGORIES: { key: Category; label: string }[] = [
   { key: 'recent', label: 'Recent' },
   { key: 'tracklists', label: 'Tracklists' },
   { key: 'playlists', label: 'Playlists' },
-  { key: 'yedits', label: 'Y-Edits' },
 ];
 
 export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHomeClick, activeCategory, onCategoryChange, onRandomSongClick, isRandomMode, yeiOpen, onYEIClick }: NavbarProps) {

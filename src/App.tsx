@@ -8,9 +8,7 @@ import { EraGrid } from './components/EraGrid';
 import { EraDetail, findMvsForSong, findRemixesForSong, findSamplesForSong } from './components/EraDetail';
 import { PlayerBar } from './components/PlayerBar';
 import { FullScreenPlayer } from './components/FullScreenPlayer';
-import { ArtGallery, ArtEntry } from './components/ArtGallery';
 import { StemsView, StemEntry } from './components/StemsView';
-import { MiscView, MiscEntry } from './components/MiscView';
 import { TracklistsView, TracklistAlbum } from './components/TracklistsView';
 import { QueueModal } from './components/QueueModal';
 import { handleShareSilent } from './components/EraDetail';
@@ -100,11 +98,7 @@ export interface FakesEntry {
 import { SettingsView } from './components/SettingsView';
 import { HistoryView } from './components/HistoryView';
 import { FakesView } from './components/FakesView';
-import { CompsView } from './components/CompsView';
-import { YEditsView } from './components/YEditsView';
 import { ReleasedView, ReleasedEntry } from './components/ReleasedView';
-import { VideosView, VideoRawEntry } from './components/VideosView';
-import { SubAlbumsView, SubAlbumEntry } from './components/SubAlbumsView';
 import { ChatBubble } from './components/ChatBubble';
 import { PlaylistsView } from './components/PlaylistsView';
 import { ImportPlaylistModal } from './components/ImportPlaylistModal';
@@ -134,15 +128,11 @@ export default function App() {
   const [mvData, setMvData] = useState<MvEntry[]>([]);
   const [remixData, setRemixData] = useState<RemixEntry[]>([]);
   const [samplesData, setSamplesData] = useState<SampleEntry[]>([]);
-  const [artData, setArtData] = useState<ArtEntry[]>([]);
   const [recentData, setRecentData] = useState<Song[]>([]);
   const [stemsData, setStemsData] = useState<StemEntry[]>([]);
-  const [miscData, setMiscData] = useState<MiscEntry[]>([]);
   const [fakesData, setFakesData] = useState<FakesEntry[]>([]);
   const [tracklistsData, setTracklistsData] = useState<TracklistAlbum[]>([]);
   const [releasedData, setReleasedData] = useState<ReleasedEntry[]>([]);
-  const [videosData, setVideosData] = useState<VideoRawEntry[]>([]);
-  const [subAlbumsData, setSubAlbumsData] = useState<SubAlbumEntry[]>([]);
   const [isRandomMode, setIsRandomMode] = useState(false);
   const [popupUrl, setPopupUrl] = useState<string | null>(null);
 
@@ -165,20 +155,13 @@ export default function App() {
 
   const [activeCategory, setActiveCategory] = useState<Category>(() => {
     const path = window.location.pathname;
-    if (path.startsWith('/art')) return 'art';
     if (path.startsWith('/stems')) return 'stems';
-    if (path.startsWith('/misc')) return 'misc';
     if (path.startsWith('/fakes')) return 'fakes';
     if (path.startsWith('/released')) return 'released';
-    if (path.startsWith('/related')) return 'related';
     if (path.startsWith('/recent')) return 'recent';
     if (path.startsWith('/settings')) return 'settings';
     if (path.startsWith('/history')) return 'history';
     if (path.startsWith('/tracklists')) return 'tracklists';
-    if (path.startsWith('/videos')) return 'videos';
-    if (path.startsWith('/comps')) return 'comps';
-    if (path.startsWith('/yedits')) return 'yedits';
-    if (path.startsWith('/subalbums')) return 'subalbums';
     return 'music';
   });
 
@@ -933,12 +916,8 @@ export default function App() {
 
         const path = window.location.pathname;
         const hash = window.location.hash;
-        if (path.startsWith('/art') || hash.startsWith('#art')) {
-          setActiveCategory('art');
-        } else if (path.startsWith('/stems')) {
+        if (path.startsWith('/stems')) {
           setActiveCategory('stems');
-        } else if (path.startsWith('/misc')) {
-          setActiveCategory('misc');
         } else if (path.startsWith('/fakes')) {
           setActiveCategory('fakes');
         } else if (path.startsWith('/released')) {
@@ -961,20 +940,6 @@ export default function App() {
           }
         } else if (path.startsWith('/tracklists')) {
           setActiveCategory('tracklists');
-        } else if (path.startsWith('/yedits')) {
-          setActiveCategory('yedits');
-        } else if (path.startsWith('/subalbums')) {
-          setActiveCategory('subalbums');
-        } else if (path.startsWith('/related/')) {
-          setActiveCategory('related');
-          const slug = path.split('/related/')[1];
-          const erasValues = Object.values(json.eras || {}) as Era[];
-          const match = erasValues.find(e => createSlug(e.name) === slug);
-          if (match) {
-            setSelectedAlbum({ ...match, fileInfo: CUSTOM_ALBUM_INFO[match.name] || match.fileInfo, image: CUSTOM_IMAGES[match.name] || match.image });
-          } else {
-            window.history.replaceState({ category: 'related' }, '', '/related');
-          }
         } else if (path.startsWith('/album/')) {
           const slug = path.split('/album/')[1];
           if (slug === 'nasir' || slug === 'ktse' || slug === 'never stop' || slug === 'daytona' || slug === 'the elementary school dropout') {
@@ -1013,33 +978,12 @@ export default function App() {
         console.error("Failed to fetch MV data:", err);
       });
 
-    axios.get('/api/music-videos')
-      .then(res => {
-        setVideosData(res.data as VideoRawEntry[]);
-      })
-      .catch(err => {
-        console.error("Failed to fetch music videos data:", err);
-      });
-
     Promise.resolve({ data: [] })
       .then(res => {
         setRemixData(normalizeEraField(res.data) as RemixEntry[]);
       })
       .catch(err => {
         console.error("Failed to fetch Remix data:", err);
-      });
-
-    axios.get('/api/art')
-      .then(res => {
-        const data = normalizeEraField(res.data) as ArtEntry[];
-        const filteredData = data.filter(item => {
-          const l = (item['Link(s)'] || '').toLowerCase();
-          return !l.includes('link needed') && !l.includes('link%20needed') && !l.includes('source needed') && !l.includes('source%20needed');
-        });
-        setArtData(filteredData);
-      })
-      .catch(err => {
-        console.error("Failed to fetch Art data:", err);
       });
 
     fetch('/data/stems.csv')
@@ -1054,14 +998,6 @@ export default function App() {
       })
       .catch(err => {
         console.error("Failed to fetch Stems data:", err);
-      });
-
-    axios.get('/api/misc')
-      .then(res => {
-        setMiscData(normalizeEraField(res.data) as MiscEntry[]);
-      })
-      .catch(err => {
-        console.error("Failed to fetch Misc data:", err);
       });
 
     axios.get('/api/released')
@@ -1129,14 +1065,6 @@ export default function App() {
         console.error("Failed to fetch Tracklists data:", err);
       });
 
-    axios.get('/data/subalbums.json')
-      .then(res => {
-        setSubAlbumsData(res.data as SubAlbumEntry[]);
-      })
-      .catch(err => {
-        console.error("Failed to fetch Sub Albums data:", err);
-      });
-
     const userAgent = navigator.userAgent.toLowerCase();
     const isBrowserSafari = userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('crios') && !userAgent.includes('android');
 
@@ -1180,17 +1108,9 @@ export default function App() {
     if (loading) return;
     const currentPath = window.location.pathname;
 
-    if (activeCategory === 'art') {
-      if (!currentPath.startsWith('/art')) {
-        window.history.pushState({ category: 'art' }, '', '/art');
-      }
-    } else if (activeCategory === 'stems') {
+    if (activeCategory === 'stems') {
       if (!currentPath.startsWith('/stems')) {
         window.history.pushState({ category: 'stems' }, '', '/stems');
-      }
-    } else if (activeCategory === 'misc') {
-      if (!currentPath.startsWith('/misc')) {
-        window.history.pushState({ category: 'misc' }, '', '/misc');
       }
     } else if (activeCategory === 'fakes') {
       if (!currentPath.startsWith('/fakes')) {
@@ -1212,17 +1132,6 @@ export default function App() {
       if (!currentPath.startsWith('/history')) {
         window.history.pushState({ category: 'history' }, '', '/history');
       }
-    } else if (activeCategory === 'related') {
-      if (selectedAlbum) {
-        const newPath = `/related/${createSlug(selectedAlbum.name)}`;
-        if (currentPath !== newPath && !currentPath.includes('?song=')) {
-          window.history.pushState({ album: selectedAlbum.name, category: 'related' }, '', newPath);
-        }
-      } else {
-        if (currentPath !== '/related') {
-          window.history.pushState({ category: 'related' }, '', '/related');
-        }
-      }
     } else if (activeCategory === 'tracklists') {
       if (selectedAlbum) {
         const newPath = `/tracklists/${createSlug(selectedAlbum.name)}`;
@@ -1233,22 +1142,6 @@ export default function App() {
         if (currentPath !== '/tracklists') {
           window.history.pushState({ category: 'tracklists' }, '', '/tracklists');
         }
-      }
-    } else if (activeCategory === 'videos') {
-      if (!currentPath.startsWith('/videos')) {
-        window.history.pushState({ category: 'videos' }, '', '/videos');
-      }
-    } else if (activeCategory === 'comps') {
-      if (!currentPath.startsWith('/comps')) {
-        window.history.pushState({ category: 'comps' }, '', '/comps');
-      }
-    } else if (activeCategory === 'yedits') {
-      if (!currentPath.startsWith('/yedits')) {
-        window.history.pushState({ category: 'yedits' }, '', '/yedits');
-      }
-    } else if (activeCategory === 'subalbums') {
-      if (!currentPath.startsWith('/subalbums')) {
-        window.history.pushState({ category: 'subalbums' }, '', '/subalbums');
       }
     } else {
       if (selectedAlbum) {
@@ -1281,20 +1174,6 @@ export default function App() {
           setSelectedAlbum(null);
           setActiveCategory('music');
         }
-      } else if (path.startsWith('/related/') && data) {
-        const slug = path.split('/related/')[1];
-        const erasValues = Object.values(data.eras || {}) as Era[];
-        const match = erasValues.find(e => createSlug(e.name) === slug);
-        if (match) {
-          setSelectedAlbum({ ...match, fileInfo: CUSTOM_ALBUM_INFO[match.name] || match.fileInfo, image: CUSTOM_IMAGES[match.name] || match.image });
-          setActiveCategory('related');
-        } else {
-          setSelectedAlbum(null);
-          setActiveCategory('related');
-        }
-      } else if (path.startsWith('/related')) {
-        setSelectedAlbum(null);
-        setActiveCategory('related');
       } else if (path.startsWith('/tracklists/') && data) {
         const slug = path.split('/tracklists/')[1];
         const erasValues = Object.values(data.eras || {}) as Era[];
@@ -1309,12 +1188,8 @@ export default function App() {
       } else if (path.startsWith('/tracklists')) {
         setSelectedAlbum(null);
         setActiveCategory('tracklists');
-      } else if (path.startsWith('/art')) {
-        setActiveCategory('art');
       } else if (path.startsWith('/stems')) {
         setActiveCategory('stems');
-      } else if (path.startsWith('/misc')) {
-        setActiveCategory('misc');
       } else if (path.startsWith('/released')) {
         setActiveCategory('released');
       } else if (path.startsWith('/recent')) {
@@ -1323,10 +1198,6 @@ export default function App() {
         setActiveCategory('settings');
       } else if (path.startsWith('/history')) {
         setActiveCategory('history');
-      } else if (path.startsWith('/yedits')) {
-        setActiveCategory('yedits');
-      } else if (path.startsWith('/subalbums')) {
-        setActiveCategory('subalbums');
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -1949,10 +1820,6 @@ export default function App() {
       if (!finalErasArray.find(e => e.name === selectedAlbum.name)) {
         setSelectedAlbum(null);
       }
-    } else if (cat === 'related' && selectedAlbum) {
-      if (!relatedErasArray.find(e => e.name === selectedAlbum.name)) {
-        setSelectedAlbum(null);
-      }
     } else if (cat === 'tracklists' && selectedAlbum) {
       if (!finalErasArray.find(e => e.name === selectedAlbum.name)) {
         setSelectedAlbum(null);
@@ -2389,11 +2256,9 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
           <div className="flex-1">
             <AnimatePresence mode="wait">
               {activeCategory === 'settings' ? (
-                <SettingsView key="settings" onCategoryChange={setActiveCategory} searchQuery={searchQuery} eras={erasArray} artData={artData} stemsData={stemsData} miscData={miscData} />
+                <SettingsView key="settings" onCategoryChange={setActiveCategory} searchQuery={searchQuery} eras={erasArray} stemsData={stemsData} />
               ) : activeCategory === 'history' ? (
                 <HistoryView key="history" searchQuery={searchQuery} filters={filters} eras={erasArray} historyData={recentData} />
-              ) : activeCategory === 'art' ? (
-                <ArtGallery key="art" eras={erasArray} artData={artData} searchQuery={searchQuery} filters={filters} />
               ) : activeCategory === 'stems' ? (
                 <StemsView
                   key="stems"
@@ -2410,23 +2275,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   toggleFavorite={toggleFavorite}
                   favoriteKeys={favoriteKeys}
                 />
-              ) : activeCategory === 'misc' ? (
-                <MiscView
-                  key="misc"
-                  eras={erasArray}
-                  miscData={miscData}
-                  searchQuery={searchQuery}
-                  filters={filters}
-                  onPlaySong={handlePlaySong}
-                  currentSong={currentSong}
-                  isPlaying={isPlaying}
-                  mvData={mvData}
-                  remixData={remixData}
-                  samplesData={samplesData}
-                  toggleFavorite={toggleFavorite}
-                  favoriteKeys={favoriteKeys}
-                />
-
               ) : activeCategory === 'tracklists' && selectedAlbum ? (
                 <TracklistsView
                   key={`tracklists-${selectedAlbum.name}`}
@@ -2453,24 +2301,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   isPlaying={isPlaying}
                   toggleFavorite={toggleFavorite}
                   favoriteKeys={favoriteKeys}
-                />
-              ) : activeCategory === 'videos' ? (
-                <VideosView
-                  key="videos"
-                  eras={erasArray}
-                  videosData={videosData}
-                  searchQuery={searchQuery}
-                />
-              ) : activeCategory === 'subalbums' ? (
-                <SubAlbumsView
-                  key="subalbums"
-                  data={subAlbumsData}
-                  searchQuery={searchQuery}
-                  eras={[...erasArray, ...relatedErasArray]}
-                  releasedData={releasedData}
-                  onPlaySong={handlePlaySong}
-                  currentSong={currentSong}
-                  isPlaying={isPlaying}
                 />
               ) : activeCategory === 'released' ? (
                 <ReleasedView
@@ -2507,7 +2337,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                     const isHidden = HIDDEN_ALBUMS.includes(targetEra.name);
                     const fullEra = [...erasArray, ...relatedErasArray].find(e => e.name === targetEra.name) || targetEra;
                     setSelectedAlbum(fullEra);
-                    setActiveCategory(isHidden ? 'related' : 'music');
+                    setActiveCategory('music');
                   }}
                 />
               ) : selectedAlbum ? (
@@ -2534,34 +2364,17 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                     const isHidden = HIDDEN_ALBUMS.includes(targetEra.name);
                     const fullEra = [...erasArray, ...relatedErasArray].find(e => e.name === targetEra.name) || targetEra;
                     setSelectedAlbum(fullEra);
-                    setActiveCategory(isHidden ? 'related' : 'music');
+                    setActiveCategory('music');
                   }}
                 />
               ) : activeCategory === 'playlists' ? (
                 <PlaylistsView
                   key="playlists"
                   eras={[...erasArray, ...relatedErasArray]}
-                  artData={artData}
                   searchQuery={searchQuery}
                   onPlaySong={handlePlaySong}
                   onToast={showToast}
                 />
-              ) : activeCategory === 'comps' ? (
-                <CompsView
-                  key="comps"
-                  eras={erasArray}
-                  searchQuery={searchQuery}
-                />
-              ) : activeCategory === 'yedits' ? (
-                <YEditsView
-                  key="yedits"
-                  searchQuery={searchQuery}
-                  onPlaySong={handlePlaySong}
-                  currentSong={currentSong}
-                  isPlaying={isPlaying}
-                />
-              ) : activeCategory === 'related' ? (
-                <EraGrid key="related-grid" eras={filteredRelatedEras} onSelectEra={setSelectedAlbum} />
               ) : (
                 <EraGrid key="grid" eras={filteredEras} onSelectEra={setSelectedAlbum} />
               )}
