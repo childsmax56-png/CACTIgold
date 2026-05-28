@@ -6,7 +6,7 @@ import { FilterMenu } from './FilterMenu';
 import { SearchFilters } from '../types';
 import { useSettings } from '../SettingsContext';
 
-export type Category = 'music' | 'art' | 'recent' | 'stems' | 'misc' | 'fakes' | 'related' | 'settings' | 'history' | 'tracklists' | 'released' | 'yedits' | 'comps' | 'videos' | 'playlists' | 'subalbums' | 'timeline';
+export type Category = 'music' | 'art' | 'recent' | 'stems' | 'misc' | 'fakes' | 'related' | 'settings' | 'history' | 'tracklists' | 'released' | 'comps' | 'videos' | 'playlists' | 'subalbums' | 'timeline';
 
 interface NavbarProps {
   searchQuery: string;
@@ -32,7 +32,6 @@ const NAV_CATEGORIES: { key: Category; label: string }[] = [
   { key: 'related', label: 'Related' },
   { key: 'recent', label: 'Recent' },
   { key: 'tracklists', label: 'Tracklists' },
-  { key: 'yedits', label: 'Yedit Affiliates' },
   { key: 'comps', label: 'Comps' },
   { key: 'videos', label: 'Videos' },
   { key: 'playlists', label: 'Playlists' },
@@ -57,7 +56,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
     return () => document.removeEventListener('mousedown', handler);
   }, [dropdownOpen]);
 
-  const visibleCategories = NAV_CATEGORIES.filter(({ key }) => !(settings.yzyGoldMode && key === 'yedits'));
+  const visibleCategories = NAV_CATEGORIES;
   const activeLabel = visibleCategories.find(c => c.key === activeCategory)?.label ?? 'Navigate';
 
   const handleCategoryClick = (cat: Category) => {
@@ -76,7 +75,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
               src="/logo.png"
               alt="YZY Gold"
               onClick={onHomeClick}
-              className="h-[48px] w-[160px] object-contain object-center cursor-pointer hover:opacity-80 transition-opacity duration-300"
+              className="h-[48px] w-[160px] object-cover object-center cursor-pointer hover:opacity-80 transition-opacity duration-300"
             />
           </div>
 
@@ -122,7 +121,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                   src="/logo.png"
                   alt="YZY Gold"
                   onClick={onHomeClick}
-                  className="w-full h-full object-contain cursor-pointer hover:opacity-80 transition-opacity duration-300"
+                  className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity duration-300"
                   style={{ objectPosition: 'center center' }}
                 />
               </div>

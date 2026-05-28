@@ -40,9 +40,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const screenDesc = buildScreenDescription(screenContext);
 
-  const systemPrompt = `You are a knowledgeable assistant for YZYGOLD, a comprehensive fan tracker for Ye (formerly Kanye West) unreleased and leaked music. You help users find information about songs, eras, leaks, quality ratings, and availability.
+  // ── EDIT THIS SYSTEM PROMPT for your artist ──────────────────────────────
+  // Replace "Artist Name" and adjust the description to match your tracker.
+  const systemPrompt = `You are a knowledgeable assistant for a music fan tracker. You help users find information about songs, eras, leaks, quality ratings, and availability.
 
-The site organizes unreleased/leaked Ye music by "eras" (albums/time periods). Songs have metadata like quality (CDQ = CD quality, HQ = high quality, LQ = low quality), available length (Full, Partial, Snippet), leak dates, BPM, and file dates. Songs without a URL are unavailable/not yet leaked.
+The site organizes unreleased/leaked music by "eras" (albums/time periods). Songs have metadata like quality (CDQ = CD quality, HQ = high quality, LQ = low quality), available length (Full, Partial, Snippet), leak dates, BPM, and file dates. Songs without a URL are unavailable/not yet leaked.
 
 Currently the user is viewing: ${screenDesc}
 
@@ -57,7 +59,7 @@ Guidelines:
 - If asked about a specific song, check all eras since the same song can appear in multiple eras
 - When mentioning song names, always omit any bracketed or parenthetical tags (e.g. [CDQ], [HQ], [LQ], [Interlude], (Intro), (V2)) — use only the clean song name
 - Don't make up information — if something isn't in the tracker data, say so
-- You can also answer general questions about Ye's music history and discography`;
+- You can also answer general questions about the artist's music history and discography`;
 
   const contents = [
     ...history.map(msg => ({
