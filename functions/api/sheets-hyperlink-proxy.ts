@@ -23,37 +23,25 @@ function decodeHtmlEntities(text: string): string {
 
 function parseHtmlTable(html: string): Record<string, string>[] {
   const allRows: string[][] = [];
-
-  const rowMatches = html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
-  for (const rowMatch of rowMatches) {
+  for (const rowMatch of html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
     const cells: string[] = [];
-    const cellMatches = rowMatch[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi);
-    for (const cellMatch of cellMatches) {
+    for (const cellMatch of rowMatch[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
       const cellHtml = cellMatch[1];
       const hrefMatches = [...cellHtml.matchAll(/\shref="([^"]+)"/gi)];
       if (hrefMatches.length > 0) {
         const hrefs = hrefMatches
-          .map(m => {
-            let href = m[1];
-            href = decodeGoogleRedirectUrl(href);
-            href = decodeHtmlEntities(href);
-            return href.trim();
-          })
+          .map(m => decodeHtmlEntities(decodeGoogleRedirectUrl(m[1])).trim())
           .filter(h => h && !h.startsWith('#') && !h.startsWith('javascript:'));
         cells.push(hrefs.join('\n'));
       } else {
-        const text = cellHtml
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .trim();
-        cells.push(decodeHtmlEntities(text));
+        cells.push(decodeHtmlEntities(
+          cellHtml.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim()
+        ));
       }
     }
     if (cells.some(c => c.trim() !== '')) allRows.push(cells);
   }
-
   if (allRows.length < 2) return [];
-
   const headers = allRows[0];
   return allRows.slice(1).map(row => {
     const obj: Record<string, string> = {};
@@ -66,21 +54,13 @@ export const onRequestGet: PagesFunction = async (context) => {
   const url = new URL(context.request.url);
   const sheetUrl = url.searchParams.get('url');
 
-  if (!sheetUrl) {
-    return new Response(JSON.stringify({ error: 'Missing url parameter' }), {
+  if (!sheetUrl || !sheetUrl.startsWith('https://docs.google.com/spreadsheets/')) {
+    return new Response(JSON.stringify({ error: 'Invalid or missing url parameter' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  if (!sheetUrl.startsWith('https://docs.google.com/spreadsheets/')) {
-    return new Response(JSON.stringify({ error: 'Only Google Sheets URLs are allowed' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Extract spreadsheet ID and optional gid from the incoming URL
   const idMatch = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
   const spreadsheetId = idMatch?.[1];
@@ -93,25 +73,32 @@ export const onRequestGet: PagesFunction = async (context) => {
     });
   }
 
-  // 1. Try gviz HTML (works unauthenticated for public sheets, preserves hyperlinks)
-  const gvizHtmlUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:html${gid ? `&gid=${gid}` : ''}`;
-  try {
-    const res = await fetch(gvizHtmlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (res.ok) {
-      const html = await res.text();
-      const rows = parseHtmlTable(html);
-      if (rows.length > 0) return csvResponse(rows);
-    }
-  } catch {}
+  const gidParam = gid ? `&gid=${gid}` : '';
 
-  // 2. Fall back to standard CSV export (no hyperlink support but reliably public)
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+  // 1. Standard CSV export — works for any publicly link-shared sheet
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv${gidParam}`;
   try {
     const res = await fetch(csvUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (res.ok) {
       const text = await res.text();
-      const rows = parseCSV(text);
-      if (rows.length > 0) return csvResponse(rows);
+      // If we got an HTML redirect to Google login the response isn't CSV — skip it
+      if (!text.trimStart().startsWith('<')) {
+        const rows = parseCSV(text);
+        if (rows.length > 0) {
+          // 2. Also try gviz HTML to upgrade plain-URL values with real hyperlinks
+          const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:html${gidParam}`;
+          try {
+            const gvizRes = await fetch(gvizUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            if (gvizRes.ok) {
+              const html = await gvizRes.text();
+              const htmlRows = parseHtmlTable(html);
+              if (htmlRows.length > 0) return csvResponse(htmlRows);
+            }
+          } catch {}
+          // gviz failed or unavailable — return plain CSV rows
+          return csvResponse(rows);
+        }
+      }
     }
   } catch {}
 
