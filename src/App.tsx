@@ -2213,7 +2213,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
               ) : activeCategory === 'tracklists' && selectedAlbum ? (
                 <TracklistsView
                   key={`tracklists-${selectedAlbum.name}`}
-                  data={tracklistsData.filter(t => t.era.toLowerCase() === selectedAlbum.name.toLowerCase())}
+                  data={tracklistsData.filter(t => t.era.toLowerCase() === selectedAlbum.name.toLowerCase() || selectedAlbum.name.toLowerCase().startsWith(t.era.toLowerCase()))}
                   searchQuery={searchQuery}
                   eras={[...erasArray, ...relatedErasArray]}
                   onPlaySong={handlePlaySong}
@@ -2223,7 +2223,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   onBack={() => setSelectedAlbum(null)}
                 />
               ) : activeCategory === 'tracklists' ? (
-                <EraGrid key="tracklists-grid" eras={filteredEras.filter(e => e.name !== 'Favorites' && tracklistsData.some(t => t.era.toLowerCase() === e.name.toLowerCase()))} onSelectEra={setSelectedAlbum} />
+                <EraGrid key="tracklists-grid" eras={filteredEras.filter(e => e.name !== 'Favorites' && tracklistsData.some(t => e.name.toLowerCase() === t.era.toLowerCase() || e.name.toLowerCase().startsWith(t.era.toLowerCase())))} onSelectEra={setSelectedAlbum} />
               ) : activeCategory === 'fakes' ? (
                 <FakesView
                   key="fakes"

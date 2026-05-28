@@ -98,6 +98,7 @@ function transformReleased(raw) {
   };
   const out = [['Era', 'Name', 'Notes', 'Length', 'Release Date', 'Type', 'Streaming', 'Link(s)']];
   let currentType = 'Album Track';
+  let currentEraOverride = null;
 
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
@@ -112,18 +113,25 @@ function transformReleased(raw) {
 
     if (era.includes('| Last Updated') || era.includes('| Hover')) continue;
 
-    // Sub-category header row: era empty, title is a short label (no newline, no brackets)
-    if (!era.trim() && title.trim() && !title.includes('\n')) {
-      const mapped = TYPE_MAP[title.trim().toLowerCase()];
-      if (mapped) { currentType = mapped; continue; }
-      // Era section header (title has newline) — keep but skip
+    // Era section header rows with newline (e.g. "Days Before Rodeo\n(2013-2014)")
+    if (!era.trim() && title.includes('\n')) {
+      currentEraOverride = null;
+      currentType = 'Album Track';
       continue;
     }
 
-    // Era section header rows (era empty, title has era name with newline)
-    if (!era.trim() && title.includes('\n')) continue;
+    // Rows where era is empty and title has no newline
+    if (!era.trim() && title.trim()) {
+      const mapped = TYPE_MAP[title.trim().toLowerCase()];
+      if (mapped) { currentType = mapped; continue; }
+      // Not a type header — it's an era sub-section header (e.g. "Days Before Rodeo (Re-Release)")
+      currentEraOverride = title.trim();
+      currentType = 'Album Track';
+      continue;
+    }
 
-    out.push([era, title, notes, len, reldate, currentType, stream, links]);
+    const effectiveEra = currentEraOverride || era;
+    out.push([effectiveEra, title, notes, len, reldate, currentType, stream, links]);
   }
   return toCSV(out);
 }
