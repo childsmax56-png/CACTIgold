@@ -876,9 +876,11 @@ export default function App() {
         const recentMapped: Song[] = (recentRes.data as any[]).map(mapRecentItem);
 
         // Build sheet songs in recent format from the dedicated Recent tab fetch
+        // Supports both standard tracker columns (Name, Link(s)) and the CATIgold
+        // recent-sheet columns (Title, Links, What's new?)
         const sheetNameKey = Array.isArray(recentTabRes.data) && recentTabRes.data.length > 0
-          ? (Object.keys(recentTabRes.data[0]).find((k: string) => k.startsWith('Name')) || 'Name')
-          : 'Name';
+          ? (Object.keys(recentTabRes.data[0]).find((k: string) => k.startsWith('Title') || k.startsWith('Name')) || 'Title')
+          : 'Title';
         const sheetRecentSongs: Song[] = Array.isArray(recentTabRes.data)
           ? (recentTabRes.data as any[])
               .filter((item: any) => {
@@ -893,7 +895,7 @@ export default function App() {
                 const rawEra = (item.Era || '').trim();
                 const mk = Object.keys(ERA_MAPPINGS).find(k => k.toLowerCase() === rawEra.toLowerCase());
                 const eraName = mk ? ERA_MAPPINGS[mk] : rawEra;
-                let rawUrl = (item['Link(s)'] || '').trim();
+                let rawUrl = (item['Links'] || item['Link(s)'] || '').trim();
                 const lm = rawUrl.match(/\]\((.*?)\)/);
                 if (lm?.[1]) rawUrl = lm[1];
                 return {
@@ -904,7 +906,7 @@ export default function App() {
                   track_length: item['Track Length'] || '',
                   leak_date: item['Leak\nDate'] || item['Leak Date'] || '',
                   file_date: item['File\nDate'] || item['File Date'] || '',
-                  available_length: item['Available Length'] || '',
+                  available_length: item["What's new?"] || item['Available Length'] || '',
                   quality: item.Quality || '',
                   url: rawUrl,
                   urls: rawUrl ? [rawUrl] : [],
