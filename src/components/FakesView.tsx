@@ -19,11 +19,7 @@ interface FakesViewProps {
   favoriteKeys?: { songName: string; eraName: string; url: string }[];
 }
 
-const ERA_MAPPINGS: Record<string, string> = {
-  "Donda [V1]": "DONDA [V1]",
-  "Bully": "BULLY [V1]",
-  "BULLY": "BULLY [V1]"
-};
+const ERA_MAPPINGS: Record<string, string> = {};
 
 function parseFakesToEras(fakesData: FakesEntry[], allEras: Era[]) {
   const eraOrder: string[] = [];
@@ -66,14 +62,7 @@ export function FakesView({ eras, fakesData, searchQuery, filters, onPlaySong, c
 
   const parsedEras = useMemo(() => {
     try {
-      return parseFakesToEras(fakesData, eras).filter(era =>
-        era.eraName !== 'NASIR [Fake]' &&
-        era.eraName !== 'K.T.S.E. [Fake]' &&
-        era.eraName !== 'NEVER STOP [Fake]' &&
-        era.eraName !== 'DAYTONA [Fake]' &&
-        era.eraName !== 'NASIR [Fake Leaks]' &&
-        era.eraName !== 'Man Across The Sea [Fake Leaks]'
-      );
+      return parseFakesToEras(fakesData, eras);
     } catch (err) {
       console.error('Error parsing fakes data:', err);
       return [];
@@ -85,11 +74,6 @@ export function FakesView({ eras, fakesData, searchQuery, filters, onPlaySong, c
     if (path.startsWith('/fakes/')) {
       const slug = path.split('/fakes/')[1];
       if (slug) {
-        if (slug === createSlug('NASIR [Fake Leaks]') || slug === 'man-across-the-sea-fake-leaks') {
-           window.history.pushState(null, '', '/fakes');
-           window.dispatchEvent(new Event('popstate'));
-           return;
-        }
         const match = parsedEras.find(e => createSlug(e.eraName) === slug);
         if (match) setSelectedEra(match.eraName);
       }

@@ -38,11 +38,7 @@ interface StemsViewProps {
   favoriteKeys?: { songName: string; eraName: string; url: string }[];
 }
 
-const ERA_MAPPINGS: Record<string, string> = {
-  "Donda [V1]": "DONDA [V1]",
-  "Bully": "BULLY [V1]",
-  "BULLY": "BULLY [V1]"
-};
+const ERA_MAPPINGS: Record<string, string> = {};
 
 function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: string; image?: string; categories: { name: string; songs: Song[] }[] }[] {
   const result: { eraName: string; image?: string; categories: { name: string; songs: Song[] }[] }[] = [];
@@ -158,7 +154,7 @@ export function StemsView({ eras, stemsData, searchQuery, filters, onPlaySong, c
 
   const parsedEras = useMemo(() => {
     try {
-      return parseStemsToEras(stemsData, eras).filter(era => !era.eraName.startsWith('NASIR') && !era.eraName.startsWith('K.T.S.E.') && !era.eraName.startsWith('NEVER STOP') && !era.eraName.startsWith('DAYTONA'));
+      return parseStemsToEras(stemsData, eras);
     } catch (err) {
       console.error('Error parsing stems data:', err);
       return [];
