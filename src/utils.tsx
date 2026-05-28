@@ -21,6 +21,7 @@ export const CUSTOM_IMAGES: Record<string, string> = {
   "The Classmates":              "https://i.ibb.co/7tZDJtSh/images.png",
   "Owl Pharaoh":                 "https://i.ibb.co/RGyGsxfy/Travis-Scott-Owl-Pharaoh.jpg",
   "Days Before Rodeo":           "https://i.ibb.co/PvFNwQkZ/Days-Before-Rodeo-Cover-Art.jpg",
+  "Days Before Rodeo (Re-Release)": "https://i.ibb.co/PvFNwQkZ/Days-Before-Rodeo-Cover-Art.jpg",
   "Rodeo":                       "https://i.ibb.co/35sBRkRT/Travis-Scott-Rodeo.png",
   "Birds":                       "https://i.ibb.co/mCKFXjbZ/Travis-Scott-Birds-in-the-Trap-Sing-Mc-Knight.png",
   "Birds In The Trap Sing McKnight": "https://i.ibb.co/mCKFXjbZ/Travis-Scott-Birds-in-the-Trap-Sing-Mc-Knight.png",
