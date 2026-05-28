@@ -125,7 +125,17 @@ function transformReleased(raw) {
       const mapped = TYPE_MAP[title.trim().toLowerCase()];
       if (mapped) { currentType = mapped; continue; }
       // Not a type header — it's an era sub-section header (e.g. "Days Before Rodeo (Re-Release)")
-      currentEraOverride = title.trim();
+      const newTitle = title.trim();
+      if (currentEraOverride) {
+        // If this sub-section shares the same base era as the current override, keep the override
+        // (e.g. "Days Before Rodeo: Vault 1" merges into "Days Before Rodeo (Re-Release)")
+        const overrideBase = currentEraOverride.split(' (')[0].split(':')[0].trim();
+        if (newTitle.startsWith(overrideBase)) {
+          currentType = 'Album Track';
+          continue;
+        }
+      }
+      currentEraOverride = newTitle;
       currentType = 'Album Track';
       continue;
     }
