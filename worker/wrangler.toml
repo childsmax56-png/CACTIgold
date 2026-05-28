@@ -1,0 +1,14 @@
+name = "yzy-gold-sheet-watch"
+main = "index.ts"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "e045e65801a14aacaa50f5322e456a28"
+
+[vars]
+SHEET_ID = "12nGHPPh5dVTfLuBLVQYzC3QgPxKfvp-jgCoNccvEasM"
+# DISCORD_WEBHOOK_URL = set via: wrangler secret put DISCORD_WEBHOOK_URL
