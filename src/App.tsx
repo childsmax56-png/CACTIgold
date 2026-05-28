@@ -833,41 +833,55 @@ export default function App() {
         }
         // Map recent.csv rows
         const mapRecentItem = (item: any): Song => {
-          let name = item.Name || '';
+          // Support CATIgold recent sheet columns (Title, Links, What's new?)
+          // as well as the standard tracker format (Name, Link(s), Available Length)
+          const usesNewFormat = !!item.Title;
+          let name = '';
           let extra: string | undefined = undefined;
           let extra2: string | undefined = item.Era || undefined;
-          if (extra2) {
-            const m = extra2.match(/\s*\(/);
-            if (m) {
-              extra = extra2.substring(m.index!).trim();
-              extra2 = extra2.substring(0, m.index).trim();
+
+          if (usesNewFormat) {
+            // Title column is multiline: line 1 = name, rest = credits/producer
+            const lines = (item.Title || '').split('\n').map((l: string) => l.trim()).filter(Boolean);
+            name = lines[0] || '';
+            extra = lines.slice(1).join('\n').trim() || undefined;
+          } else {
+            name = item.Name || '';
+            if (extra2) {
+              const m = extra2.match(/\s*\(/);
+              if (m) {
+                extra = extra2.substring(m.index!).trim();
+                extra2 = extra2.substring(0, m.index).trim();
+              }
             }
-          }
-          if (name) {
-            const m = name.match(/\s*\(/);
-            if (m) {
-              const lastIdx = name.lastIndexOf(')');
-              if (lastIdx > m.index!) {
-                const extracted = name.substring(m.index!, lastIdx + 1).trim();
-                const remainder = name.substring(lastIdx + 1).trim();
-                name = name.substring(0, m.index).trim() + (remainder ? ' ' + remainder : '');
-                extra = extracted + (extra ? ' ' + extra : '');
-              } else {
-                extra = name.substring(m.index!).trim() + (extra ? ' ' + extra : '');
-                name = name.substring(0, m.index).trim();
+            if (name) {
+              const m = name.match(/\s*\(/);
+              if (m) {
+                const lastIdx = name.lastIndexOf(')');
+                if (lastIdx > m.index!) {
+                  const extracted = name.substring(m.index!, lastIdx + 1).trim();
+                  const remainder = name.substring(lastIdx + 1).trim();
+                  name = name.substring(0, m.index).trim() + (remainder ? ' ' + remainder : '');
+                  extra = extracted + (extra ? ' ' + extra : '');
+                } else {
+                  extra = name.substring(m.index!).trim() + (extra ? ' ' + extra : '');
+                  name = name.substring(0, m.index).trim();
+                }
               }
             }
           }
+
+          const rawLink = (item['Links'] || item['Link(s)'] || '').trim();
           return {
             name, extra, extra2,
             description: item.Notes,
             track_length: item['Track Length'],
             leak_date: item['Leak\nDate'] || item['Leak Date'],
             file_date: item['File\nDate'] || item['File Date'],
-            available_length: item['Available Length'],
+            available_length: item["What's new?"] || item['Available Length'],
             quality: item.Quality,
-            url: item['Link(s)'] ? item['Link(s)'].split('\n')[0] : '',
-            urls: item['Link(s)'] ? item['Link(s)'].split('\n') : [],
+            url: rawLink ? rawLink.split('\n')[0] : '',
+            urls: rawLink ? rawLink.split('\n') : [],
           };
         };
         const recentMapped: Song[] = (recentRes.data as any[]).map(mapRecentItem);
