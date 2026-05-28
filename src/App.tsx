@@ -674,7 +674,7 @@ export default function App() {
     const sheetCsvUrl = getSheetCsvExportUrl(
       settings.googleSheetsUrl || `https://docs.google.com/spreadsheets/d/${HARDCODED_SHEET_ID}/edit#gid=${HARDCODED_SHEET_GID}`
     );
-    const recentSheetCsvUrl = `https://docs.google.com/spreadsheets/d/${RECENT_SHEET_ID}/export?format=csv`;
+    const recentSheetUrl = `https://docs.google.com/spreadsheets/d/${RECENT_SHEET_ID}`;
 
     const FETCH_TIMEOUT = 20000;
     Promise.all([
@@ -692,7 +692,7 @@ export default function App() {
         console.error("Failed to fetch Recent data:", err);
         return { data: [] };
       }),
-      axios.get(`/api/sheets-proxy?url=${encodeURIComponent(recentSheetCsvUrl)}`, { timeout: FETCH_TIMEOUT }).catch(err => {
+      axios.get(`/api/sheets-hyperlink-proxy?url=${encodeURIComponent(recentSheetUrl)}`, { timeout: FETCH_TIMEOUT }).catch(err => {
         console.error("Failed to fetch Recent tab data", err);
         return { data: [] };
       }),
@@ -892,6 +892,7 @@ export default function App() {
                 let rawUrl = (item['Links'] || item['Link(s)'] || '').trim();
                 const lm = rawUrl.match(/\]\((.*?)\)/);
                 if (lm?.[1]) rawUrl = lm[1];
+                const urlList = rawUrl ? rawUrl.split('\n').map((u: string) => u.trim()).filter(Boolean) : [];
                 return {
                   name: songName,
                   extra: songExtra,
@@ -902,8 +903,8 @@ export default function App() {
                   file_date: item['File\nDate'] || item['File Date'] || '',
                   available_length: item["What's new?"] || item['Available Length'] || '',
                   quality: item.Quality || '',
-                  url: rawUrl,
-                  urls: rawUrl ? [rawUrl] : [],
+                  url: urlList[0] || '',
+                  urls: urlList,
                 } as Song;
               })
               .filter((s: Song) => !!s.name)
@@ -942,10 +943,6 @@ export default function App() {
           setActiveCategory('tracklists');
         } else if (path.startsWith('/album/')) {
           const slug = path.split('/album/')[1];
-          if (slug === 'nasir' || slug === 'ktse' || slug === 'never stop' || slug === 'daytona' || slug === 'the elementary school dropout') {
-            window.history.replaceState({ album: null }, '', '/');
-            return;
-          }
           const erasValues = Object.values(json.eras || {}) as Era[];
           const match = erasValues.find(e => createSlug(e.name) === slug);
           if (match) {
@@ -1884,63 +1881,12 @@ let erasArray = (Object.values(data.eras || {}) as Era[])
     fileInfo: CUSTOM_ALBUM_INFO[era.name] || era.fileInfo
   })) as Era[];
 
-const RELATED_ERA_ORDER = [
-  'DAYTONA',
-  'NASIR',
-  'K.T.S.E.',
-  'Jesus Is Born',
-  'Sunday Service Choir',
-  'The Elementary School Dropout',
-  'NEVER STOP',
-  'YE-I',
-];
-
 let relatedErasArray = (Object.values(data.eras || {}) as Era[])
   .filter(era => HIDDEN_ALBUMS.includes(era.name))
   .map(era => ({
     ...era,
     fileInfo: CUSTOM_ALBUM_INFO[era.name] || era.fileInfo
-  }))
-  .sort((a, b) => {
-    const ai = RELATED_ERA_ORDER.indexOf(a.name);
-    const bi = RELATED_ERA_ORDER.indexOf(b.name);
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  }) as Era[];
-
-// Turbo Grafx 16 and Wolves can end up out of position (Turbo gets renamed from
-// "TurboGrafx 16" via ERA_MAPPINGS, Wolves may be appended after myk merge).
-// Reinsert both right after Cruel Winter [V2]: CW[V2] → Turbo Grafx 16 → Wolves.
-{
-  const cwV2Idx = erasArray.findIndex(e => e.name === "Cruel Winter [V2]");
-  const turboIdx = erasArray.findIndex(e => e.name === "Turbo Grafx 16");
-  const wolvesIdx = erasArray.findIndex(e => e.name === "Wolves");
-
-  if (cwV2Idx !== -1 && turboIdx !== -1 && wolvesIdx !== -1) {
-    const turboEra = erasArray[turboIdx];
-    const wolvesEra = erasArray[wolvesIdx];
-    [turboIdx, wolvesIdx].sort((a, b) => b - a).forEach(i => erasArray.splice(i, 1));
-    const newCwV2Idx = erasArray.findIndex(e => e.name === "Cruel Winter [V2]");
-    erasArray.splice(newCwV2Idx + 1, 0, turboEra, wolvesEra);
-  }
-}
-
-// KIDS SEE GHOSTS can land at the end of the array when the API returns the old
-// "KIDSSEEGHOSTS" name and ERA_MAPPINGS renames it (new JS key goes to the end).
-// Always move it to sit directly after "ye".
-{
-  const yeIdx = erasArray.findIndex(e => e.name === "ye");
-  const ksgIdx = erasArray.findIndex(e => e.name === "KIDS SEE GHOSTS");
-
-  if (yeIdx !== -1 && ksgIdx !== -1 && ksgIdx !== yeIdx + 1) {
-    const ksgEra = erasArray[ksgIdx];
-    erasArray.splice(ksgIdx, 1);
-    const newYeIdx = erasArray.findIndex(e => e.name === "ye");
-    erasArray.splice(newYeIdx + 1, 0, ksgEra);
-  }
-}
+  })) as Era[];
 
 
 
@@ -1981,12 +1927,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
 
   const finalErasArray = [...erasArray];
   if (favoritesEra) {
-    const beforeIndex = finalErasArray.findIndex(e => e.name === "Before The College Dropout");
-    if (beforeIndex !== -1) {
-      finalErasArray.splice(beforeIndex, 0, favoritesEra);
-    } else {
-      finalErasArray.unshift(favoritesEra);
-    }
+    finalErasArray.unshift(favoritesEra);
   }
 
   const filteredEras = finalErasArray.filter(era => {
@@ -2070,10 +2011,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
     image: "https://i.ibb.co/7xRv4H2r/sdffsdsdf.png",
     data: {
       "Latest Additions": recentData
-        .filter(song => {
-           const eName = song.extra2 || song.extra;
-           return eName !== 'NASIR' && eName !== 'K.T.S.E.' && eName !== 'NEVER STOP' && eName !== 'DAYTONA' && eName !== 'The Elementary School Dropout';
-        })
         .map(song => {
           const rawEraName = song.extra2 || song.extra;
           const cleanEraName = rawEraName ? getCleanSongNameWithTags(rawEraName) : '';
@@ -2094,8 +2031,6 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
     Object.keys(data.eras).forEach(eraKey => {
       const era = data.eras[eraKey];
       
-      if (era.name === 'NASIR' || era.name === 'K.T.S.E.' || era.name === 'NEVER STOP' || era.name === 'DAYTONA') return;
-
       if (era.data) {
         Object.values(era.data).flat().forEach(song => {
           const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
@@ -2288,7 +2223,7 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
                   onBack={() => setSelectedAlbum(null)}
                 />
               ) : activeCategory === 'tracklists' ? (
-                <EraGrid key="tracklists-grid" eras={filteredEras.filter(e => e.name !== 'Favorites')} onSelectEra={setSelectedAlbum} />
+                <EraGrid key="tracklists-grid" eras={filteredEras.filter(e => e.name !== 'Favorites' && tracklistsData.some(t => t.era.toLowerCase() === e.name.toLowerCase()))} onSelectEra={setSelectedAlbum} />
               ) : activeCategory === 'fakes' ? (
                 <FakesView
                   key="fakes"
