@@ -43,7 +43,6 @@ const ERA_MAPPINGS: Record<string, string> = {};
 function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: string; image?: string; categories: { name: string; songs: Song[] }[] }[] {
   const result: { eraName: string; image?: string; categories: { name: string; songs: Song[] }[] }[] = [];
   let currentEraName = '';
-  let currentEraDesc = '';
   let currentCategory = 'Default';
   let currentCategorySongs: Song[] = [];
   let currentEraCategories: { name: string; songs: Song[] }[] = [];
@@ -63,33 +62,24 @@ function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: st
 
   const CATEGORY_NAMES = ['Instrumentals', 'Acapellas', 'Studio Stems', 'Sessions', 'Live Acapellas', 'Live Stems', 'TV Tracks', 'For / Pre-Travis', 'Unconfirmed', 'Features', 'Production'];
 
-  for (const item of stemsData) {
-    const isBrokenEra = typeof item.Era === 'string' && (item.Era.includes('OG File') || item.Era.includes('Unavailable'));
-    const isEraHeader = (!item.Era || isBrokenEra) && item.Name && (typeof item["Leak Date"] === 'object' || (item["Full Length"] && typeof item["Full Length"] === 'string' && item["Full Length"].length > 50));
-    const isCategoryHeader = !item.Era && item.Name && !item.Quality && !item["Link(s)"] && CATEGORY_NAMES.includes(item.Name);
-
-    if (isEraHeader && !isCategoryHeader) {
-      if (currentEraName && currentCategorySongs.length > 0) {
-        currentEraCategories.push({ name: currentCategory, songs: currentCategorySongs });
-      }
-      if (currentEraName && currentEraCategories.length > 0) {
-        const matchingEra = allEras.find(e => e.name === currentEraName);
-        result.push({
-          eraName: currentEraName + ' [Stems Album]',
-          image: CUSTOM_IMAGES[currentEraName] || matchingEra?.image,
-          categories: currentEraCategories
-        });
-      }
-
-      let rawName = item.Name.split('\n')[0];
-      const matchedKey = Object.keys(ERA_MAPPINGS).find(k => k.toLowerCase() === rawName.toLowerCase());
-      currentEraName = matchedKey ? ERA_MAPPINGS[matchedKey] : rawName;
-      currentEraDesc = '';
-      currentCategory = 'Default';
-      currentCategorySongs = [];
-      currentEraCategories = [];
-      continue;
+  const pushCurrentEra = () => {
+    if (!currentEraName) return;
+    if (currentCategorySongs.length > 0) {
+      currentEraCategories.push({ name: currentCategory, songs: currentCategorySongs });
     }
+    if (currentEraCategories.length > 0) {
+      const matchingEra = allEras.find(e => e.name === currentEraName);
+      result.push({
+        eraName: currentEraName + ' [Stems Album]',
+        image: CUSTOM_IMAGES[currentEraName] || matchingEra?.image,
+        categories: currentEraCategories,
+      });
+    }
+  };
+
+  for (const item of stemsData) {
+    // Category header: empty Era, Name is a known category label
+    const isCategoryHeader = !item.Era && item.Name && CATEGORY_NAMES.includes(item.Name);
 
     if (isCategoryHeader) {
       if (currentCategorySongs.length > 0) {
@@ -101,6 +91,19 @@ function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: st
     }
 
     if (item.Era && item.Name) {
+      // New era detected — flush the previous one
+      const rawEra = item.Era.split('\n')[0].trim();
+      const matchedKey = Object.keys(ERA_MAPPINGS).find(k => k.toLowerCase() === rawEra.toLowerCase());
+      const mappedEra = matchedKey ? ERA_MAPPINGS[matchedKey] : rawEra;
+
+      if (mappedEra !== currentEraName) {
+        pushCurrentEra();
+        currentEraName = mappedEra;
+        currentCategory = 'Default';
+        currentCategorySongs = [];
+        currentEraCategories = [];
+      }
+
       const notes = item["Notes\n(Join the Discord to help fix any issues + help with dead links)"] || (item as any).Notes || '';
 
       const links = item["Link(s)"] ? item["Link(s)"].split('\n').filter(l => l.trim()) : [];
@@ -132,17 +135,7 @@ function parseStemsToEras(stemsData: StemEntry[], allEras: Era[]): { eraName: st
     }
   }
 
-  if (currentCategorySongs.length > 0) {
-    currentEraCategories.push({ name: currentCategory, songs: currentCategorySongs });
-  }
-  if (currentEraName && currentEraCategories.length > 0) {
-    const matchingEra = allEras.find(e => e.name === currentEraName);
-    result.push({
-      eraName: currentEraName + ' [Stems Album]',
-      image: CUSTOM_IMAGES[currentEraName] || matchingEra?.image,
-      categories: currentEraCategories
-    });
-  }
+  pushCurrentEra();
 
   return result;
 }

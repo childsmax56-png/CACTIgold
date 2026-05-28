@@ -95,6 +95,10 @@ function transformReleased(raw) {
     'project': 'Album Track',
     'album tracks': 'Album Track',
     'other': 'Other',
+    'loosies': 'Single',
+    'loosie': 'Single',
+    'samples': 'Other',
+    'sample': 'Other',
   };
   const out = [['Era', 'Name', 'Notes', 'Length', 'Release Date', 'Type', 'Streaming', 'Link(s)']];
   let currentType = 'Album Track';
