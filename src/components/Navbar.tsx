@@ -6,7 +6,7 @@ import { FilterMenu } from './FilterMenu';
 import { SearchFilters } from '../types';
 import { useSettings } from '../SettingsContext';
 
-export type Category = 'music' | 'art' | 'recent' | 'stems' | 'misc' | 'fakes' | 'related' | 'settings' | 'history' | 'tracklists' | 'released' | 'comps' | 'videos' | 'playlists' | 'subalbums' | 'timeline';
+export type Category = 'music' | 'recent' | 'stems' | 'fakes' | 'settings' | 'history' | 'tracklists' | 'released' | 'yedits' | 'playlists' | 'timeline';
 
 interface NavbarProps {
   searchQuery: string;
@@ -24,18 +24,13 @@ interface NavbarProps {
 
 const NAV_CATEGORIES: { key: Category; label: string }[] = [
   { key: 'music', label: 'Music' },
-  { key: 'art', label: 'Art' },
   { key: 'stems', label: 'Stems' },
-  { key: 'misc', label: 'Misc' },
   { key: 'fakes', label: 'Fakes' },
   { key: 'released', label: 'Released' },
-  { key: 'related', label: 'Related' },
   { key: 'recent', label: 'Recent' },
   { key: 'tracklists', label: 'Tracklists' },
-  { key: 'comps', label: 'Comps' },
-  { key: 'videos', label: 'Videos' },
   { key: 'playlists', label: 'Playlists' },
-  { key: 'subalbums', label: 'Sub Albums' },
+  { key: 'yedits', label: 'Y-Edits' },
 ];
 
 export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHomeClick, activeCategory, onCategoryChange, onRandomSongClick, isRandomMode, yeiOpen, onYEIClick }: NavbarProps) {
@@ -75,7 +70,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
               src="/logo.png"
               alt="YZY Gold"
               onClick={onHomeClick}
-              className="h-[48px] w-[160px] object-contain object-center cursor-pointer hover:opacity-80 transition-opacity duration-300"
+              className="h-[56px] w-[220px] object-contain object-center cursor-pointer hover:opacity-80 transition-opacity duration-300"
             />
           </div>
 
@@ -103,7 +98,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
               </div>
               {/* filter/shuffle shown on mobile only — desktop versions live in center */}
               <div className="md:hidden flex items-center gap-2">
-                {activeCategory !== 'art' && activeCategory !== 'settings' && <FilterMenu filters={filters} setFilters={setFilters} activeCategory={activeCategory} />}
+                {activeCategory !== 'settings' && <FilterMenu filters={filters} setFilters={setFilters} activeCategory={activeCategory} />}
                 {activeCategory === 'music' && onRandomSongClick && settings.showRandomSongButton && (
                   <button
                     onClick={onRandomSongClick}
@@ -116,7 +111,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                 )}
               </div>
               {/* desktop logo fills the gap between search and center */}
-              <div className="hidden md:block w-[170px] h-[60px] shrink-0 overflow-hidden">
+              <div className="hidden md:block w-[240px] h-[60px] shrink-0 overflow-hidden">
                 <img
                   src="/logo.png"
                   alt="YZY Gold"
@@ -240,7 +235,7 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
       <div className="hidden md:flex flex-1 justify-center">
         <div className="flex items-center justify-center gap-6">
           <div className="flex items-center gap-4">
-            {activeCategory !== 'art' && activeCategory !== 'settings' && activeCategory !== 'history' && <FilterMenu filters={filters} setFilters={setFilters} activeCategory={activeCategory} />}
+            {activeCategory !== 'settings' && activeCategory !== 'history' && <FilterMenu filters={filters} setFilters={setFilters} activeCategory={activeCategory} />}
             {activeCategory === 'music' && onRandomSongClick && settings.showRandomSongButton && (
               <button
                 onClick={onRandomSongClick}
