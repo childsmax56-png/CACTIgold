@@ -25,6 +25,7 @@ export const CUSTOM_IMAGES: Record<string, string> = {
   "The Scotts":                 "https://i.ibb.co/MnKtGkq/the-scotts.jpg",
   "Utopia [P1]":                "https://i.ibb.co/Kz3mVnF/utopia.jpg",
   "Utopia [P2]":                "https://i.ibb.co/Kz3mVnF/utopia.jpg",
+  "Utopia":                     "https://i.ibb.co/Kz3mVnF/utopia.jpg",
   "JackBoys 2":                 "",
   "Post-Utopia":                "",
   "Unknown":                    "",

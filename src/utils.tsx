@@ -31,6 +31,7 @@ export const CUSTOM_IMAGES: Record<string, string> = {
   "The Scotts":                  "https://i.ibb.co/TDS0KsRF/05088be594de124bbe7dfc0b5155d227-1000x1000x1.png",
   "Utopia [P1]":                 "https://i.ibb.co/xtZYkj8W/attachment-travis-scott-utopia-cover-1.jpg",
   "Utopia [P2]":                 "https://i.ibb.co/d4HmQdgn/a51d5744-77d5-4de8-9f84-eded386804df-1440x1440.jpg",
+  "Utopia":                      "https://i.ibb.co/d4HmQdgn/a51d5744-77d5-4de8-9f84-eded386804df-1440x1440.jpg",
   "JackBoys 2":                  "https://i.ibb.co/YBvxz43k/ab67616d00001e025d0f8a4c3623e02a79928288.jpg",
   "Post-Utopia":                 "https://i.ibb.co/s9wDW6wg/ab6761610000517419c2790744c792d05570bb71.jpg",
   "Unknown":                     "https://i.ibb.co/NndT3vts/2406.webp",
