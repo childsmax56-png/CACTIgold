@@ -682,13 +682,18 @@ export default function App() {
   }
 
   const HARDCODED_SHEET_ID = '12nGHPPh5dVTfLuBLVQYzC3QgPxKfvp-jgCoNccvEasM';
-  const HARDCODED_SHEET_GID = '1385926980'; // Recent tab
+  const HARDCODED_SHEET_GID = '1385926980'; // Main tracker sheet recent tab (for song sync)
+
+  // Dedicated CATIgold recent tab sheet — links are hyperlinked so we use the HTML proxy
+  const RECENT_SHEET_ID = '1gJqbQrb3dIWF-PLMsKkNUrftpQb8zxsZFDAIpSvT5Fo';
 
   useEffect(() => {
     const sheetCsvUrl = getSheetCsvExportUrl(
       settings.googleSheetsUrl || `https://docs.google.com/spreadsheets/d/${HARDCODED_SHEET_ID}/edit#gid=${HARDCODED_SHEET_GID}`
     );
     const recentTabCsvUrl = `https://docs.google.com/spreadsheets/d/${HARDCODED_SHEET_ID}/export?format=csv&gid=${HARDCODED_SHEET_GID}`;
+    // Use HTML export for the dedicated recent sheet so hyperlinked URLs are preserved
+    const recentSheetHtmlUrl = `https://docs.google.com/spreadsheets/d/${RECENT_SHEET_ID}/export?format=html`;
 
     const FETCH_TIMEOUT = 20000;
     Promise.all([
@@ -706,9 +711,10 @@ export default function App() {
         console.error("Failed to fetch Recent data:", err);
         return { data: [] };
       }),
-      axios.get(`/api/sheets-proxy?url=${encodeURIComponent(recentTabCsvUrl)}`, { timeout: FETCH_TIMEOUT }).catch(err => {
+      axios.get(`/api/sheets-hyperlink-proxy?url=${encodeURIComponent(recentSheetHtmlUrl)}`, { timeout: FETCH_TIMEOUT }).catch(err => {
         console.error("Failed to fetch Recent tab data", err);
-        return { data: [] };
+        // Fall back to old CSV-based recent tab if new sheet fails
+        return axios.get(`/api/sheets-proxy?url=${encodeURIComponent(recentTabCsvUrl)}`, { timeout: FETCH_TIMEOUT }).catch(() => ({ data: [] }));
       }),
     ])
       .then(([mainRes, mykRes, localRes, sheetsRes, recentRes, recentTabRes]) => {
