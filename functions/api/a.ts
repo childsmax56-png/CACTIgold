@@ -46,7 +46,7 @@ const ERA_ORDER = [
   'Unknown',
 ];
 
-type LinksRow = { row: number; values: string[]; links: Record<string, string> };
+type LinksRow = { row: number; values: string[]; links: Record<string, string | string[]> };
 
 export const onRequestGet: PagesFunction = async (context) => {
   try {
@@ -59,13 +59,19 @@ export const onRequestGet: PagesFunction = async (context) => {
 
     // Build era+title → real URL lookup from the hyperlinks JSON
     const normalize = (s: string) => s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    // Link values can be a string or an array of strings; always extract a single string
+    const pickUrl = (val: string | string[] | undefined): string => {
+      if (!val) return '';
+      if (Array.isArray(val)) return val[0] ?? '';
+      return val;
+    };
     const linksLookup = new Map<string, string>();
     if (linksRes.ok) {
       const linksData = await linksRes.json() as Record<string, LinksRow[]>;
       for (const row of linksData['Unreleased'] ?? []) {
         const era = mapEraName(normalize(row.values[0] ?? ''));
         const title = normalize(row.values[1] ?? '');
-        const realUrl = row.links['9'] ?? row.links['8'] ?? '';
+        const realUrl = pickUrl(row.links['9']) || pickUrl(row.links['8']) || '';
         if (era && title && realUrl) {
           linksLookup.set(`${era}:::${title}`.toLowerCase(), realUrl);
         }
