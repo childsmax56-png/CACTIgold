@@ -645,15 +645,29 @@ export default function App() {
 
       const categories = targetJson.eras[eraName].data || {};
 
-      // Skip if a song with the same name and credits already exists in the era
+      // If a song with the same name and credits already exists, update its URL if it
+      // only has a source-only identifier (e.g. "KrakenFiles") and the sheet has a real URL.
       const nameNorm = songName.toLowerCase().trim();
       const extraNorm = (extra || '').toLowerCase().trim();
-      const alreadyExists = Object.values(categories).some((list: any) =>
-        (list as Song[]).some(s =>
+      const isSheetUrlReal = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/');
+      let alreadyExists = false;
+      for (const list of Object.values(categories) as Song[][]) {
+        const idx = list.findIndex(s =>
           s.name?.toLowerCase().trim() === nameNorm &&
           (s.extra || '').toLowerCase().trim() === extraNorm
-        )
-      );
+        );
+        if (idx !== -1) {
+          alreadyExists = true;
+          if (isSheetUrlReal) {
+            const existing = list[idx];
+            const existingIsSourceOnly = !existing.url || (!existing.url.startsWith('http') && !existing.url.startsWith('/') && !/\.(mp3|m4a|wav|ogg|flac|aac)/i.test(existing.url));
+            if (existingIsSourceOnly) {
+              list[idx] = { ...existing, url: rawUrl, urls: [rawUrl] };
+            }
+          }
+          break;
+        }
+      }
       if (alreadyExists) return;
 
       const catKey = avLenToCategory(item['Available Length'] || '', categories);
@@ -1232,7 +1246,8 @@ export default function App() {
     const isNotAvailable = isSongNotAvailable(song, rawUrl);
     
     const lowerUrl = (rawUrl || '').toLowerCase();
-    const isTrulyEmptyLink = !rawUrl || lowerUrl === 'n/a' || lowerUrl.includes('link needed') || lowerUrl.includes('source needed');
+    const isRealUrlCheck = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/') || /\.(mp3|m4a|wav|ogg|flac|aac)(\?|$)/i.test(rawUrl);
+    const isTrulyEmptyLink = !rawUrl || lowerUrl === 'n/a' || lowerUrl.includes('link needed') || lowerUrl.includes('source needed') || !isRealUrlCheck;
 
     if (isTrulyEmptyLink) return;
 
@@ -1360,6 +1375,8 @@ export default function App() {
         }
       }
     } else {
+      const isRealUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/') || /\.(mp3|m4a|wav|ogg|flac|aac)(\?|$)/i.test(rawUrl);
+      if (!isRealUrl) return;
       if (settings.notOpenInNewTab) {
           setPopupUrl(rawUrl);
       } else {
@@ -2129,6 +2146,10 @@ let relatedErasArray = (Object.values(data.eras || {}) as Era[])
         onPlay={() => setIsPlaying(true)}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onError={() => {
+          setIsPlaying(false);
+          showToast('Could not load audio. The link may be unavailable.');
+        }}
         crossOrigin="anonymous"
         playsInline
       />

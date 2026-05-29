@@ -388,7 +388,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
     return processedCategories.flatMap(c => c.songs).filter(song => {
       const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
       const isNotAvailable = isSongNotAvailable(song, rawUrl);
-      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
+      return rawUrl && (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
     });
   }, [processedCategories]);
 
@@ -635,9 +635,10 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
                     const rawUrl = song.url || (song.urls && song.urls.length > 0 ? song.urls[0] : '');
                     const isNotAvailable = isSongNotAvailable(song, rawUrl);
                     const lowerUrl = (rawUrl || '').toLowerCase();
-                    const isTrulyEmptyLink = !rawUrl || lowerUrl === 'n/a' || lowerUrl.includes('link needed') || lowerUrl.includes('source needed');
+                    const isRealUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/') || /\.(mp3|m4a|wav|ogg|flac|aac)(\?|$)/i.test(rawUrl);
+                    const isTrulyEmptyLink = !rawUrl || lowerUrl === 'n/a' || lowerUrl.includes('link needed') || lowerUrl.includes('source needed') || !isRealUrl;
                     const isYoutubeLink = (rawUrl.includes('youtube.com/watch') || rawUrl.includes('youtu.be/')) && !isNotAvailable;
-                    const isPlayable = (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/')) && !isNotAvailable;
+                    const isPlayable = (rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('krakenfiles.com/view/')) && !isNotAvailable;
                     const isEmpty = isTrulyEmptyLink || isNotAvailable || lowerUrl.includes('n/a');
                     const isCurrentlyPlaying = (currentSong?.name === song.name && currentSong?.description === song.description) ||
                       (currentSong?.url && song.url && currentSong.url === song.url) ||
