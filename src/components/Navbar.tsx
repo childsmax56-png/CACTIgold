@@ -1,12 +1,13 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, DollarSign, LogIn, LogOut, Settings, Dice5, X, ChevronDown } from 'lucide-react';
+import { Search, DollarSign, LogIn, LogOut, Settings, Dice5, X, ChevronDown, GanttChart, LayoutGrid } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { SiDiscord, SiReddit, SiTiktok } from 'react-icons/si';
 import { FilterMenu } from './FilterMenu';
 import { SearchFilters } from '../types';
 import { useSettings } from '../SettingsContext';
+import { GlobalSearchPanel, GlobalSearchResult } from './GlobalSearchPanel';
 
-export type Category = 'music' | 'recent' | 'stems' | 'fakes' | 'settings' | 'history' | 'tracklists' | 'released' | 'playlists' | 'timeline';
+export type Category = 'music' | 'recent' | 'stems' | 'fakes' | 'settings' | 'history' | 'tracklists' | 'released' | 'playlists';
 
 interface NavbarProps {
   searchQuery: string;
@@ -18,8 +19,12 @@ interface NavbarProps {
   onCategoryChange: (cat: Category) => void;
   onRandomSongClick?: () => void;
   isRandomMode?: boolean;
+  isTimelineMode?: boolean;
+  onTimelineToggle?: () => void;
   yeiOpen: boolean;
   onYEIClick: () => void;
+  globalSearchResults?: GlobalSearchResult[];
+  onSelectGlobalResult?: (result: GlobalSearchResult) => void;
 }
 
 const NAV_CATEGORIES: { key: Category; label: string }[] = [
@@ -32,9 +37,10 @@ const NAV_CATEGORIES: { key: Category; label: string }[] = [
   { key: 'playlists', label: 'Playlists' },
 ];
 
-export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHomeClick, activeCategory, onCategoryChange, onRandomSongClick, isRandomMode, yeiOpen, onYEIClick }: NavbarProps) {
+export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHomeClick, activeCategory, onCategoryChange, onRandomSongClick, isRandomMode, isTimelineMode, onTimelineToggle, yeiOpen, onYEIClick, globalSearchResults, onSelectGlobalResult }: NavbarProps) {
   const { settings } = useSettings();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -84,6 +90,9 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                   placeholder={activeCategory === 'settings' ? "Search settings..." : "Search..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setIsSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setIsSearchFocused(false), 150)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setIsSearchFocused(false); }}
                   className="w-full bg-white/5 border border-white/10 rounded-md py-1 pl-8 pr-7 text-xs text-white focus:outline-none focus:border-white/30 transition-colors placeholder:text-white/30"
                 />
                 {searchQuery && (
@@ -94,6 +103,18 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                     <X className="w-4 h-4" />
                   </button>
                 )}
+                <AnimatePresence>
+                  {isSearchFocused && activeCategory !== 'settings' && globalSearchResults && globalSearchResults.length > 0 && (
+                    <GlobalSearchPanel
+                      results={globalSearchResults}
+                      query={searchQuery}
+                      onSelect={(result) => {
+                        setIsSearchFocused(false);
+                        onSelectGlobalResult?.(result);
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
               {/* filter/shuffle shown on mobile only — desktop versions live in center */}
               <div className="md:hidden flex items-center gap-2">
@@ -106,6 +127,16 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                     style={isRandomMode ? { color: 'var(--theme-color)' } : {}}
                   >
                     <Dice5 className="w-4 h-4" />
+                  </button>
+                )}
+                {activeCategory === 'music' && onTimelineToggle && (
+                  <button
+                    onClick={onTimelineToggle}
+                    title={isTimelineMode ? 'Switch to Grid' : 'Switch to Timeline'}
+                    className={`flex items-center justify-center cursor-pointer transition-colors p-1.5 rounded-md border ${isTimelineMode ? 'border-[var(--theme-color)] bg-white/10' : 'border-transparent text-white/40 hover:text-white hover:bg-white/5'}`}
+                    style={isTimelineMode ? { color: 'var(--theme-color)' } : {}}
+                  >
+                    {isTimelineMode ? <LayoutGrid className="w-4 h-4" /> : <GanttChart className="w-4 h-4" />}
                   </button>
                 )}
               </div>
@@ -243,6 +274,16 @@ export function Navbar({ searchQuery, setSearchQuery, filters, setFilters, onHom
                 style={isRandomMode ? { color: 'var(--theme-color)' } : {}}
               >
                 <Dice5 className="w-4 h-4" />
+              </button>
+            )}
+            {activeCategory === 'music' && onTimelineToggle && (
+              <button
+                onClick={onTimelineToggle}
+                title={isTimelineMode ? 'Switch to Grid' : 'Switch to Timeline'}
+                className={`flex items-center justify-center cursor-pointer transition-colors p-1.5 rounded-md border ${isTimelineMode ? 'border-[var(--theme-color)] bg-white/10' : 'border-transparent text-white/40 hover:text-white hover:bg-white/5'}`}
+                style={isTimelineMode ? { color: 'var(--theme-color)' } : {}}
+              >
+                {isTimelineMode ? <LayoutGrid className="w-4 h-4" /> : <GanttChart className="w-4 h-4" />}
               </button>
             )}
           </div>
