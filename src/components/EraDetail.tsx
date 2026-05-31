@@ -270,13 +270,14 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
         }
         const isLossless = song.quality?.toLowerCase().includes('lossless');
         if (settings.embedMetadata && (ext === '.mp3' || ext === '.flac' || ext === '.wav')) {
-          const artUrl = song.image || CUSTOM_IMAGES[songEraName] || (song as any).realEra?.image || era.image;
+          // Skip artwork in zip path — concurrent artwork fetches saturate the browser's
+          // connection limit and cause the download to hang.
           const tagMeta = {
             title: songTitle,
             artist: buildArtistTag(song.name, songEraName),
             album: songEraName,
             year: ALBUM_RELEASE_DATES[songEraName]?.split('/').pop(),
-            artworkUrl: artUrl,
+            artworkUrl: undefined,
           };
           try {
             if (ext === '.mp3') blob = await embedID3Tags(blob, tagMeta, songTitle);
