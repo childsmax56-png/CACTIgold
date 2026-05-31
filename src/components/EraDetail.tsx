@@ -260,13 +260,13 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
           ext = imageExt || await detectAudioExt(blob);
         } else {
           ext = await detectAudioExt(blob);
-          if (ext === '.mp3') {
-            if (ct.includes('flac'))                                     ext = '.flac';
-            else if (ct.includes('wav') || ct.includes('wave'))          ext = '.wav';
-            else if (ct.includes('aiff'))                                ext = '.aiff';
-            else if (ct.includes('ogg') || ct.includes('opus'))          ext = '.ogg';
-            else if (ct.includes('m4a') || (ct.includes('mp4') && !ct.includes('video'))) ext = '.m4a';
-          }
+        }
+        if (ext === '.mp3') {
+          if (ct.includes('flac'))                                     ext = '.flac';
+          else if (ct.includes('wav') || ct.includes('wave'))          ext = '.wav';
+          else if (ct.includes('aiff'))                                ext = '.aiff';
+          else if (ct.includes('ogg') || ct.includes('opus'))          ext = '.ogg';
+          else if (ct.includes('m4a') || (ct.includes('mp4') && !ct.includes('video'))) ext = '.m4a';
         }
         const isLossless = song.quality?.toLowerCase().includes('lossless');
         if (settings.embedMetadata && (ext === '.mp3' || ext === '.flac' || ext === '.wav')) {
