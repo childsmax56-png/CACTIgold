@@ -247,7 +247,7 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
       if (!rawUrl || !(rawUrl.includes('pillows.su/f/') || rawUrl.includes('pillowcase.su/f/') || rawUrl.includes('temp.imgur.gg/f/') || rawUrl.includes('ibb.co') || rawUrl.match(/\.(png|jpg|jpeg)$/i) || rawUrl.startsWith('https://i.scdn.co/'))) return;
       try {
         const { fetchUrl, isImage, imageExt, headers } = await resolveUrl(rawUrl);
-        const res = await fetch(fetchUrl, headers ? { headers } : undefined);
+        const res = await fetch(fetchUrl, { ...(headers ? { headers } : {}), signal: AbortSignal.timeout(30000) });
         if (!res.ok && res.status !== 206) throw new Error('fetch failed');
         const ct = res.headers.get('content-type') ?? '';
         if (ct.startsWith('text/html') || ct.startsWith('application/json')) throw new Error('non-audio response');
