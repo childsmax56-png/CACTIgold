@@ -267,33 +267,31 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
             else if (ct.includes('ogg') || ct.includes('opus'))          ext = '.ogg';
             else if (ct.includes('m4a') || (ct.includes('mp4') && !ct.includes('video'))) ext = '.m4a';
           }
-          const isLossless = song.quality?.toLowerCase().includes('lossless');
-          if (settings.embedMetadata && (ext === '.mp3' || ext === '.flac' || ext === '.wav')) {
-            const artUrl = song.image || CUSTOM_IMAGES[songEraName] || (song as any).realEra?.image || era.image;
-            const tagMeta = {
-              title: songTitle,
-              artist: buildArtistTag(song.name, songEraName),
-              album: songEraName,
-              year: ALBUM_RELEASE_DATES[songEraName]?.split('/').pop(),
-              artworkUrl: artUrl,
-            };
-            try {
-              if (ext === '.mp3') blob = await embedID3Tags(blob, tagMeta, songTitle);
-              else if (ext === '.wav') blob = await embedWAVTags(blob, tagMeta, songTitle);
-              else if (ext === '.flac') {
-                try {
-                  blob = await flacToWav(blob); ext = '.wav';
-                  blob = await embedWAVTags(blob, tagMeta, songTitle);
-                } catch {
-                  if (!isLossless) blob = await embedFLACTags(blob, tagMeta, songTitle);
-                  // lossless: save clean FLAC — can't produce WAV without conversion
-                }
+        }
+        const isLossless = song.quality?.toLowerCase().includes('lossless');
+        if (settings.embedMetadata && (ext === '.mp3' || ext === '.flac' || ext === '.wav')) {
+          const artUrl = song.image || CUSTOM_IMAGES[songEraName] || (song as any).realEra?.image || era.image;
+          const tagMeta = {
+            title: songTitle,
+            artist: buildArtistTag(song.name, songEraName),
+            album: songEraName,
+            year: ALBUM_RELEASE_DATES[songEraName]?.split('/').pop(),
+            artworkUrl: artUrl,
+          };
+          try {
+            if (ext === '.mp3') blob = await embedID3Tags(blob, tagMeta, songTitle);
+            else if (ext === '.wav') blob = await embedWAVTags(blob, tagMeta, songTitle);
+            else if (ext === '.flac') {
+              try {
+                blob = await flacToWav(blob); ext = '.wav';
+                blob = await embedWAVTags(blob, tagMeta, songTitle);
+              } catch {
+                if (!isLossless) blob = await embedFLACTags(blob, tagMeta, songTitle);
               }
-            } catch { /* skip tagging, save raw */ }
-          } else if (isLossless && ext === '.flac') {
-            // No metadata embedding, but still convert FLAC → WAV for lossless songs
-            try { blob = await flacToWav(blob); ext = '.wav'; } catch { /* keep as FLAC */ }
-          }
+            }
+          } catch { /* skip tagging, save raw */ }
+        } else if (isLossless && ext === '.flac') {
+          try { blob = await flacToWav(blob); ext = '.wav'; } catch { /* keep as FLAC */ }
         }
         zip.file(`${fileName}${ext}`, blob);
       } catch (err) {
