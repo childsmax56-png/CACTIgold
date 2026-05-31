@@ -122,7 +122,7 @@ export function PlaylistsView({ eras, artData = [], searchQuery = '', onPlaySong
     zip.file('tracklist.txt', tracklist);
 
     try {
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const zipName = `${playlist.name.replace(/[^a-z0-9 ]/gi, '_')}.zip`;
       saveAs(zipBlob, zipName);
       const msg = downloaded > 0

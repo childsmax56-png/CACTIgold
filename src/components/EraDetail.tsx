@@ -302,10 +302,22 @@ export function EraDetail({ era, onBack, onPlaySong, searchQuery = '', filters, 
     }));
 
     setToastMessage('Zipping...');
-    const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, `${era.name}.zip`);
-    setToastMessage(null);
-    setIsDownloading(false);
+    try {
+      const content = await zip.generateAsync(
+        { type: 'blob', compression: 'STORE' },
+        (meta) => {
+          if (meta.percent < 100) setToastMessage(`Zipping... ${Math.round(meta.percent)}%`);
+        }
+      );
+      saveAs(content, `${era.name}.zip`);
+    } catch (err) {
+      console.error('Zip generation failed:', err);
+      setToastMessage('Download failed. Try downloading songs individually.');
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setIsDownloading(false);
+      setToastMessage(null);
+    }
   };
 
   const processedCategories = useMemo(() => {

@@ -325,10 +325,22 @@ export function MiscView({ eras, miscData, searchQuery, filters, onPlaySong, cur
     }));
 
     setToastMessage('Zipping...');
-    const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, `${miscEraName}.zip`);
-    setToastMessage(null);
-    setIsDownloading(false);
+    try {
+      const content = await zip.generateAsync(
+        { type: 'blob', compression: 'STORE' },
+        (meta) => {
+          if (meta.percent < 100) setToastMessage(`Zipping... ${Math.round(meta.percent)}%`);
+        }
+      );
+      saveAs(content, `${miscEraName}.zip`);
+    } catch (err) {
+      console.error('Zip generation failed:', err);
+      setToastMessage('Download failed. Try downloading songs individually.');
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setIsDownloading(false);
+      setToastMessage(null);
+    }
   };
 
   const [zoomedImage, setZoomedImage] = useState(false);

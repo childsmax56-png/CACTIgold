@@ -231,7 +231,7 @@ function AlbumCard({ album, matches, defaultOpen, onPlaySong, currentSong, isPla
       }
     }));
 
-    const content = await zip.generateAsync({ type: 'blob' });
+    const content = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
     saveAs(content, `${sanitizeFilename(album.name)}.zip`);
     setDlProgress(null);
   }, [album, matches, dlProgress]);
