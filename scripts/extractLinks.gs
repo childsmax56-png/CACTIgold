@@ -1,6 +1,6 @@
-// Run this in script.google.com (standalone project, not bound to any sheet)
-// It opens the public Travis Scott tracker sheet and extracts all hyperlinks.
-// Output: a JSON file saved to your Google Drive.
+// Run this in script.google.com as a STANDALONE project (not bound to any sheet).
+// The sheet must be set to "Anyone with link can view".
+// After running, find "cactigold_links.json" in your Google Drive and download it.
 
 function extractCACTILinks() {
   const SHEET_ID = '1gJqbQrb3dIWF-PLMsKkNUrftpQb8zxsZFDAIpSvT5Fo';
@@ -19,8 +19,8 @@ function extractCACTILinks() {
 
     Logger.log(`Processing ${sheetName}: ${lastRow} rows, ${lastCol} cols`);
 
-    const range = sheet.getRange(1, 1, lastRow, lastCol);
-    const values        = range.getValues();
+    const range          = sheet.getRange(1, 1, lastRow, lastCol);
+    const values         = range.getValues();
     const richTextValues = range.getRichTextValues();
 
     const rows = [];
@@ -39,7 +39,7 @@ function extractCACTILinks() {
         if (cellUrl) {
           urls.push(cellUrl);
         } else {
-          // 2) Per-run hyperlinks (multiple links in one cell)
+          // 2) Per-run hyperlinks (multiple links within one cell)
           for (const run of rtv.getRuns()) {
             const url = run.getLinkUrl();
             if (url) urls.push(url);
@@ -49,7 +49,7 @@ function extractCACTILinks() {
         if (urls.length) rowLinks[c] = urls.length === 1 ? urls[0] : urls;
       }
 
-      // Always include header row; otherwise only include rows with links
+      // Always include the header row; include data rows only if they have links
       if (r === 0 || Object.keys(rowLinks).length) {
         rows.push({ row: r + 1, values: values[r], links: rowLinks });
       }
@@ -59,9 +59,16 @@ function extractCACTILinks() {
     Logger.log(`  → ${rows.length - 1} rows with links found`);
   }
 
-  const json  = JSON.stringify(output, null, 2);
-  const file  = DriveApp.createFile('cactigold_links.json', json, MimeType.PLAIN_TEXT);
+  // Delete any previous output file so we don't accumulate copies
+  const existing = DriveApp.getFilesByName('cactigold_links.json');
+  while (existing.hasNext()) existing.next().setTrashed(true);
 
-  Logger.log('✅ Done! File saved to Drive:');
+  const file = DriveApp.createFile(
+    'cactigold_links.json',
+    JSON.stringify(output, null, 2),
+    MimeType.PLAIN_TEXT
+  );
+
+  Logger.log('✅ Done! Download the file from Google Drive:');
   Logger.log(file.getUrl());
 }
